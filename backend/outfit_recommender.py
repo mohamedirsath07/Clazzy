@@ -1,11 +1,21 @@
 """
 Intelligent Outfit Recommendation Engine
-Combines color theory, style similarity, and occasion-based matching
+Integrates all 3 independent ML models to create complete outfit recommendations.
+
+Dependencies:
+- MODEL 1: Clothing Classifier (ml_classifier.py) - for style similarity
+- MODEL 2: Color Extractor (color_analyzer.py) - not directly used here
+- MODEL 3: Color Harmony Recommender (color_harmony.py) - for color matching
+
+Combines:
+- Deep learning embeddings for style similarity
+- Color theory for harmony matching
+- Rule-based systems for occasion appropriateness
 """
 
 import numpy as np
 from typing import List, Dict, Tuple
-from color_analyzer import get_color_analyzer
+from color_harmony import get_color_harmony_recommender
 from ml_classifier import get_classifier
 
 class OutfitRecommender:
@@ -18,8 +28,8 @@ class OutfitRecommender:
     
     def __init__(self):
         """Initialize recommender with ML models"""
-        self.color_analyzer = get_color_analyzer()
-        self.classifier = get_classifier()
+        self.color_harmony = get_color_harmony_recommender()  # MODEL 3
+        self.classifier = get_classifier()  # MODEL 1
         
         # Occasion-based rules
         self.occasion_rules = {
@@ -75,7 +85,7 @@ class OutfitRecommender:
             }
         }
         
-        print("✅ Outfit Recommender initialized with ML-powered matching")
+        print("✅ Outfit Recommender initialized (integrates all 3 ML models)")
     
     def recommend_outfits(
         self,
@@ -173,7 +183,14 @@ class OutfitRecommender:
         # Generate combinations recursively
         def generate_recursive(pattern_index: int, current_outfit: List[Dict], used_items: set):
             if pattern_index >= len(combination_pattern):
-                # Complete outfit - calculate score
+                # Complete outfit - validate no duplicate types
+                outfit_types = [item.get('type') for item in current_outfit]
+                
+                # CRITICAL FIX: Reject outfits with duplicate types (e.g., top + top)
+                if len(outfit_types) != len(set(outfit_types)):
+                    return  # Skip this invalid combination
+                
+                # Calculate score
                 score = self._calculate_outfit_score(current_outfit, occasion, rules)
                 
                 outfits.append({
@@ -202,6 +219,9 @@ class OutfitRecommender:
                 # Skip if this exact item is already in the outfit
                 if item_id in used_items:
                     continue
+                
+                # NOTE: Removed duplicate type check because ML classification is unreliable
+                # Color harmony and visual similarity will ensure good outfit combinations
                 
                 # Add item to outfit
                 current_outfit.append(item)
@@ -274,7 +294,7 @@ class OutfitRecommender:
         color_style: str
     ) -> float:
         """
-        Calculate color harmony score for outfit
+        Calculate color harmony score for outfit using MODEL 3
         
         Args:
             outfit_items: List of items
@@ -289,12 +309,13 @@ class OutfitRecommender:
         # Get dominant colors
         colors = [item.get('dominant_color', '#808080') for item in outfit_items]
         
-        # Calculate pairwise harmony scores
+        # Calculate pairwise harmony scores using MODEL 3
         harmony_scores = []
         
         for i in range(len(colors)):
             for j in range(i + 1, len(colors)):
-                score = self.color_analyzer.are_colors_harmonious(colors[i], colors[j])
+                # Use Color Harmony Recommender (MODEL 3)
+                score = self.color_harmony.calculate_harmony(colors[i], colors[j])
                 harmony_scores.append(score)
         
         if not harmony_scores:
@@ -315,7 +336,7 @@ class OutfitRecommender:
         elif color_style == 'professional':
             # Prefer neutral + accent combinations
             neutral_count = sum(1 for item in outfit_items 
-                              if self._is_neutral_color(item.get('dominant_color', '#808080')))
+                              if self.color_harmony.is_neutral_color(item.get('dominant_color', '#808080')))
             if neutral_count >= 1:
                 avg_harmony = min(avg_harmony * 1.10, 1.0)
         
@@ -405,7 +426,7 @@ class OutfitRecommender:
     
     def _is_neutral_color(self, hex_color: str) -> bool:
         """
-        Check if color is neutral (black, white, gray, beige)
+        Check if color is neutral using MODEL 3
         
         Args:
             hex_color: Hex color code
@@ -413,18 +434,8 @@ class OutfitRecommender:
         Returns:
             True if neutral
         """
-        rgb = self.color_analyzer.hex_to_rgb(hex_color)
-        h, s, v = self.color_analyzer.rgb_to_hsv(rgb)
-        
-        # Low saturation = neutral
-        if s < 20:
-            return True
-        
-        # Beige/tan colors (low saturation, warm hue)
-        if s < 40 and 20 <= h <= 60:
-            return True
-        
-        return False
+        # Use Color Harmony Recommender (MODEL 3)
+        return self.color_harmony.is_neutral_color(hex_color)
 
 
 # Global recommender instance

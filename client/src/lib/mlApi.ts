@@ -7,7 +7,7 @@
 const getApiBaseUrl = () => {
   const protocol = window.location.protocol;
   const hostname = window.location.hostname;
-  return `${protocol}//${hostname}:8000`;
+  return `${protocol}//${hostname}:8001`; // ML backend on port 8001
 };
 
 export interface MLTypePrediction {

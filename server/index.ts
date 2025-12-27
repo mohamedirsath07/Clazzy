@@ -39,13 +39,14 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Connect to MongoDB
+  // Connect to MongoDB (optional for development)
   try {
     await connectDB();
     log("🗄️  MongoDB connected successfully!");
   } catch (error) {
-    console.error("❌ MongoDB connection failed:", error);
-    process.exit(1);
+    console.error("⚠️  MongoDB connection failed:", error);
+    log("⚠️  Continuing without MongoDB (ML features still work!)");
+    // Don't exit - continue without MongoDB for ML testing
   }
 
   // Register MongoDB routes
