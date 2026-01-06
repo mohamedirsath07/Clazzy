@@ -3,24 +3,25 @@ FastAPI ML Backend for Clazzy Fashion Recommendation
 Production-ready system with 3 INDEPENDENT ML Models:
 
 MODEL 1: Clothing Classifier (ml_classifier.py)
-- Purpose: Classify clothing items (top/bottom/dress/shoes/blazer)
-- Technology: ResNet50 transfer learning
+- Purpose: Binary classification of clothing items (TOP or BOTTOM)
+- Technology: Custom-trained TensorFlow/Keras model (150x150 input, sigmoid output)
+- Model file: clothing_classifier_model.keras
 - Endpoint: /predict-type
 
 MODEL 2: Color Extractor (color_analyzer.py)
 - Purpose: Extract dominant colors from images
-- Technology: K-means clustering
+- Technology: K-means clustering with extended color palette
 - Endpoint: /extract-colors
 
-MODEL 3: Color Harmony Recommender (color_harmony.py)
-- Purpose: Recommend matching colors based on color theory
-- Technology: HSV color space + harmony algorithms
-- Endpoint: /recommend-colors
+MODEL 3: Outfit Recommender (outfit_recommender.py)
+- Purpose: Generate outfit recommendations based on color harmony
+- Technology: HSV color space + harmony algorithms + occasion rules
+- Endpoint: /recommend-outfits
 
 Additional Features:
-- Outfit recommendation combining all 3 models
-- Occasion-based styling
-- Deep learning embeddings for style matching
+- Color harmony detection (Monochromatic, Analogous, Triadic, Complementary)
+- Occasion-based styling (formal, casual, party, date, etc.)
+- Invalid combination prevention (top+top, bottom+bottom)
 """
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
@@ -33,15 +34,21 @@ from pathlib import Path
 import io
 
 # Import the 3 independent ML models
-from ml_classifier_improved import ImprovedClothingClassifier as ClothingClassifier  # Use improved version
-from color_analyzer import get_color_analyzer
-from color_harmony import get_color_harmony_recommender
-from outfit_recommender import get_outfit_recommender
+from ml_classifier import ClothingClassifier  # MODEL 1: Custom classifier
+from color_analyzer import get_color_analyzer  # MODEL 2: Color extraction
+from outfit_recommender import (  # MODEL 3: Recommendations
+    get_outfit_recommender, 
+    recommend_outfits, 
+    hex_to_hsv, 
+    color_harmony,
+    get_all_color_matches,
+    recommend_matching_colors
+)
 
 app = FastAPI(
     title="Clazzy Fashion ML API",
     version="3.0.0",
-    description="3 Independent ML Models: Classifier + Color Extractor + Harmony Recommender"
+    description="3 Independent ML Models: Classifier + Color Extractor + Outfit Recommender"
 )
 
 app.add_middleware(
@@ -59,26 +66,23 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 # Global ML model instances (lazy loading)
 _classifier = None
 _color_analyzer = None
-_color_harmony = None
 _recommender = None
 
 def get_models():
     """Initialize all 3 independent ML models on first request (lazy loading)"""
-    global _classifier, _color_analyzer, _color_harmony, _recommender
+    global _classifier, _color_analyzer, _recommender
     
     if _classifier is None:
         print("🚀 Loading 3 Independent ML Models...")
-        print("   [1/3] Clothing Classifier (Improved Multi-Signal)...")
+        print("   [1/3] Clothing Classifier (Custom Top/Bottom Model)...")
         _classifier = ClothingClassifier()
-        print("   [2/3] Color Extractor (K-means)...")
+        print("   [2/3] Color Extractor (K-means + Extended Palette)...")
         _color_analyzer = get_color_analyzer()
-        print("   [3/3] Color Harmony Recommender (Color Theory)...")
-        _color_harmony = get_color_harmony_recommender()
-        print("   [+] Outfit Recommender (Integration Layer)...")
+        print("   [3/3] Outfit Recommender (Color Harmony + Occasion Rules)...")
         _recommender = get_outfit_recommender()
         print("✅ All ML models loaded successfully!")
     
-    return _classifier, _color_analyzer, _color_harmony, _recommender
+    return _classifier, _color_analyzer, _recommender
 
 
 def get_uploaded_files():
@@ -103,15 +107,14 @@ async def root():
         "status": "online",
         "version": "3.0.0",
         "ml_models": {
-            "model_1": "Clothing Classifier (ResNet50)",
-            "model_2": "Color Extractor (K-means)",
-            "model_3": "Color Harmony Recommender (Color Theory)"
+            "model_1": "Clothing Classifier (Custom TensorFlow/Keras - Top/Bottom)",
+            "model_2": "Color Extractor (K-means + Extended Palette)",
+            "model_3": "Outfit Recommender (Color Harmony + Occasion Rules)"
         },
         "endpoints": {
-            "/predict-type": "Classify clothing type",
-            "/extract-colors": "Extract dominant colors",
-            "/recommend-colors": "Get matching color combinations",
-            "/recommend-outfits": "Generate complete outfit recommendations"
+            "/predict-type": "Classify clothing type (top/bottom)",
+            "/extract-colors": "Extract dominant colors with names",
+            "/recommend-outfits": "Generate outfit recommendations"
         }
     }
 
@@ -119,35 +122,41 @@ async def root():
 @app.post('/predict-type')
 async def predict_type(file: UploadFile = File(...)):
     """
-    MODEL 1 ENDPOINT: Predict clothing type using Improved Multi-Signal Classifier
+    MODEL 1 ENDPOINT: Predict clothing type using Custom-trained Binary Classifier
     
-    Uses the Clothing Classifier model to determine clothing category.
-    Uses multiple signals: aspect ratio, edge detection, color patterns, deep features.
+    Uses a custom TensorFlow/Keras model to classify clothing as TOP or BOTTOM.
+    Model: clothing_classifier_model.keras (150x150 input, sigmoid output)
+    
+    Classification Logic:
+    - prediction > 0.5 → 'top'
+    - prediction <= 0.5 → 'bottom'
     
     Args:
         file: Image file to classify
     
     Returns:
         {
-            "predicted_type": str (top/bottom/dress/shoes/blazer/other),
+            "predicted_type": str ('top' or 'bottom'),
             "confidence": float (0-1),
-            "model_used": "MODEL 1: Improved Clothing Classifier"
+            "raw_prediction": float (raw sigmoid output),
+            "model_used": "MODEL 1: Custom Top/Bottom Classifier"
         }
     """
     try:
         # Initialize models
-        classifier, color_analyzer, color_harmony, _ = get_models()
+        classifier, color_analyzer, recommender = get_models()
         
         # Read file bytes
         file_bytes = await file.read()
         
-        # Classify using Improved Classifier (MODEL 1)
+        # Classify using Custom Classifier (MODEL 1)
         prediction = classifier.predict(file_bytes)
         
         return JSONResponse({
             "predicted_type": prediction['predicted_type'],
             "confidence": round(prediction['confidence'], 3),
-            "model_used": "MODEL 1: Improved Multi-Signal Classifier"
+            "raw_prediction": round(prediction.get('raw_prediction', 0), 4),
+            "model_used": "MODEL 1: Custom Top/Bottom Classifier"
         })
         
     except Exception as e:
@@ -174,7 +183,7 @@ async def extract_colors(file: UploadFile = File(...)):
     """
     try:
         # Initialize models
-        classifier, color_analyzer, color_harmony, _ = get_models()
+        classifier, color_analyzer, recommender = get_models()
         
         # Read file bytes
         file_bytes = await file.read()
@@ -224,13 +233,13 @@ async def recommend_colors(
     """
     try:
         # Initialize models
-        classifier, color_analyzer, color_harmony, _ = get_models()
+        classifier, color_analyzer, recommender = get_models()
         
         # Get all possible matches (MODEL 3)
-        all_matches = color_harmony.get_all_matches(hex_color)
+        all_matches = get_all_color_matches(hex_color)
         
         # Get top recommendations based on style
-        recommendations = color_harmony.recommend_matching_colors(
+        recommendations = recommend_matching_colors(
             hex_color,
             style=style,
             top_n=5
@@ -267,7 +276,7 @@ async def analyze_complete(file: UploadFile = File(...)):
     """
     try:
         # Initialize models
-        classifier, color_analyzer, color_harmony, _ = get_models()
+        classifier, color_analyzer, recommender = get_models()
         
         # Read file bytes
         file_bytes = await file.read()
@@ -280,7 +289,7 @@ async def analyze_complete(file: UploadFile = File(...)):
         dominant_color = colors[0]['hex'] if colors else '#808080'
         
         # MODEL 3: Get matching colors
-        color_matches = color_harmony.get_all_matches(dominant_color)
+        color_matches = get_all_color_matches(dominant_color)
         
         return JSONResponse({
             "classification": {
@@ -333,7 +342,7 @@ async def recommend_outfits(occasion: str = Form(...), max_items: int = Form(2))
     """
     try:
         # Initialize models
-        classifier, color_analyzer, color_harmony, recommender = get_models()
+        classifier, color_analyzer, recommender = get_models()
         
         # Get all uploaded files
         uploaded_files = get_uploaded_files()
@@ -375,7 +384,7 @@ async def recommend_outfits(occasion: str = Form(...), max_items: int = Form(2))
                     'type': prediction['predicted_type'],
                     'colors': colors,
                     'dominant_color': dominant_color,
-                    'features': prediction['features'],  # Deep learning embeddings
+                    'confidence': prediction['confidence'],  # Classification confidence
                     'url': f'/uploads/{file_path.name}'
                 }
                 

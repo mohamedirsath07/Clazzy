@@ -13,12 +13,12 @@ Features:
 - Color space conversions (RGB ↔ HSV ↔ HEX)
 - Percentage calculation for each color
 - Smart filtering (removes shadows and overexposure)
-- Human-readable color names
+- Extended human-readable color names (60+ fashion colors)
 
 Usage:
     analyzer = ColorAnalyzer()
     colors = analyzer.extract_colors(image_bytes)
-    # Returns: [{'hex': '#FF5733', 'rgb': (255,87,51), 'percentage': 45.2, 'hsv': ...}]
+    # Returns: [{'hex': '#FF5733', 'rgb': (255,87,51), 'percentage': 45.2, 'name': 'Tomato'}]
 """
 
 import cv2
@@ -28,6 +28,55 @@ from PIL import Image
 import io
 from typing import List, Tuple
 import colorsys
+
+# Extended color palette with fashion-friendly names (from export_package)
+COLOR_NAMES = {
+    # Reds
+    "Red": "#FF0000", "Dark Red": "#8B0000", "Crimson": "#DC143C", 
+    "Maroon": "#800000", "Indian Red": "#CD5C5C", "Fire Brick": "#B22222",
+    
+    # Pinks
+    "Pink": "#FFC0CB", "Hot Pink": "#FF69B4", "Deep Pink": "#FF1493",
+    "Light Pink": "#FFB6C1", "Pale Violet Red": "#DB7093", "Salmon": "#FA8072",
+    
+    # Oranges
+    "Orange": "#FFA500", "Dark Orange": "#FF8C00", "Coral": "#FF7F50",
+    "Tomato": "#FF6347", "Orange Red": "#FF4500", "Peach": "#FFDAB9",
+    
+    # Yellows
+    "Yellow": "#FFFF00", "Gold": "#FFD700", "Light Yellow": "#FFFFE0",
+    "Khaki": "#F0E68C", "Goldenrod": "#DAA520", "Mustard": "#FFDB58",
+    
+    # Greens
+    "Green": "#008000", "Dark Green": "#006400", "Lime": "#00FF00",
+    "Forest Green": "#228B22", "Sea Green": "#2E8B57", "Olive": "#808000",
+    "Light Green": "#90EE90", "Teal": "#008080", "Mint": "#98FF98",
+    
+    # Blues
+    "Blue": "#0000FF", "Navy": "#000080", "Dark Blue": "#00008B",
+    "Royal Blue": "#4169E1", "Steel Blue": "#4682B4", "Sky Blue": "#87CEEB",
+    "Light Blue": "#ADD8E6", "Powder Blue": "#B0E0E6", "Cyan": "#00FFFF",
+    "Dodger Blue": "#1E90FF", "Cobalt Blue": "#0047AB", "Denim Blue": "#1560BD",
+    
+    # Purples
+    "Purple": "#800080", "Dark Purple": "#301934", "Violet": "#EE82EE",
+    "Indigo": "#4B0082", "Lavender": "#E6E6FA", "Orchid": "#DA70D6",
+    "Plum": "#DDA0DD", "Magenta": "#FF00FF", "Mauve": "#E0B0FF",
+    
+    # Browns
+    "Brown": "#A52A2A", "Saddle Brown": "#8B4513", "Chocolate": "#D2691E",
+    "Sienna": "#A0522D", "Tan": "#D2B48C", "Beige": "#F5F5DC",
+    "Wheat": "#F5DEB3", "Camel": "#C19A6B", "Coffee": "#6F4E37",
+    
+    # Grays
+    "Gray": "#808080", "Dark Gray": "#A9A9A9", "Light Gray": "#D3D3D3",
+    "Silver": "#C0C0C0", "Dim Gray": "#696969", "Charcoal": "#36454F",
+    "Slate Gray": "#708090",
+    
+    # Black and White
+    "Black": "#000000", "White": "#FFFFFF", "Snow": "#FFFAFA",
+    "Ivory": "#FFFFF0", "Off White": "#FAF9F6", "Cream": "#FFFDD0",
+}
 
 class ColorAnalyzer:
     """
@@ -104,12 +153,14 @@ class ColorAnalyzer:
         for idx in sorted_indices:
             color_rgb = tuple(colors[idx])
             color_hex = '#{:02x}{:02x}{:02x}'.format(*color_rgb)
+            color_name = self._closest_color_name(color_rgb)
             
             result.append({
                 'hex': color_hex,
                 'rgb': color_rgb,
                 'percentage': float(percentages[idx]),
-                'hsv': self.rgb_to_hsv(color_rgb)
+                'hsv': self.rgb_to_hsv(color_rgb),
+                'name': color_name
             })
         
         return result
@@ -162,41 +213,28 @@ class ColorAnalyzer:
     
     def get_color_name(self, hex_color: str) -> str:
         """
-        Get human-readable color name
+        Get human-readable color name using extended palette
         Args:
             hex_color: Hex color code
         Returns:
-            Color name (e.g., "Red", "Blue", "Neutral")
+            Color name (e.g., "Royal Blue", "Coral", "Navy")
         """
         rgb = self.hex_to_rgb(hex_color)
-        h, s, v = self.rgb_to_hsv(rgb)
+        return self._closest_color_name(rgb)
+    
+    def _closest_color_name(self, requested_rgb: Tuple[int, int, int]) -> str:
+        """Find the closest color name for given RGB values using extended palette."""
+        min_dist = float("inf")
+        closest_name = "Unknown"
         
-        # Check for neutral colors
-        if s < 20:
-            if v > 80:
-                return "White"
-            elif v < 20:
-                return "Black"
-            else:
-                return "Gray"
+        for name, hex_value in COLOR_NAMES.items():
+            r, g, b = self.hex_to_rgb(hex_value)
+            dist = (r - requested_rgb[0])**2 + (g - requested_rgb[1])**2 + (b - requested_rgb[2])**2
+            if dist < min_dist:
+                min_dist = dist
+                closest_name = name
         
-        # Determine hue-based color name
-        if h < 15 or h >= 345:
-            return "Red"
-        elif h < 45:
-            return "Orange"
-        elif h < 75:
-            return "Yellow"
-        elif h < 165:
-            return "Green"
-        elif h < 255:
-            return "Blue"
-        elif h < 285:
-            return "Purple"
-        elif h < 345:
-            return "Pink"
-        else:
-            return "Red"
+        return closest_name
 
 
 # Global analyzer instance

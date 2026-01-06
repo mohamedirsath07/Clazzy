@@ -1,445 +1,338 @@
 """
-Intelligent Outfit Recommendation Engine
-Integrates all 3 independent ML models to create complete outfit recommendations.
+MODEL 3: Outfit Recommendation Engine
+===================================================================
+Generates outfit recommendations based on color harmony and occasion.
 
-Dependencies:
-- MODEL 1: Clothing Classifier (ml_classifier.py) - for style similarity
-- MODEL 2: Color Extractor (color_analyzer.py) - not directly used here
-- MODEL 3: Color Harmony Recommender (color_harmony.py) - for color matching
+Purpose: Create valid outfit combinations from analyzed clothing items
+Technology: Color harmony theory (HSV analysis) + rule-based validation
+Input: List of garment dictionaries with type, color, hex
+Output: Ranked outfit recommendations sorted by harmony score
 
-Combines:
-- Deep learning embeddings for style similarity
-- Color theory for harmony matching
-- Rule-based systems for occasion appropriateness
+Features:
+- Color harmony detection (Monochromatic, Analogous, Triadic, Complementary)
+- Occasion-based scoring (formal, office, casual, party, date, college)
+- Rule-based outfit validation (top + bottom required)
+- Score-based ranking
+
+Usage:
+    from outfit_recommender import recommend_outfits, get_outfit_recommender
+    
+    garments = [
+        {"name": "Blue Shirt", "type": "top", "color": "Blue", "hex": "#1f3c88"},
+        {"name": "Black Jeans", "type": "bottom", "color": "Black", "hex": "#000000"}
+    ]
+    
+    recommendations = recommend_outfits(garments, occasion="formal")
 """
 
-import numpy as np
+import colorsys
 from typing import List, Dict, Tuple
-from color_harmony import get_color_harmony_recommender
-from ml_classifier import get_classifier
+
+
+# -----------------------------
+# HEX to HSV Conversion
+# -----------------------------
+def hex_to_hsv(hex_color: str) -> Tuple[float, float, float]:
+    """Convert HEX color to HSV (Hue in degrees, Saturation, Value)"""
+    hex_color = hex_color.lstrip("#")
+    r = int(hex_color[0:2], 16) / 255.0
+    g = int(hex_color[2:4], 16) / 255.0
+    b = int(hex_color[4:6], 16) / 255.0
+    h, s, v = colorsys.rgb_to_hsv(r, g, b)
+    return h * 360, s, v
+
+
+def hex_to_rgb(hex_color: str) -> Tuple[int, int, int]:
+    """Convert hex to RGB tuple"""
+    hex_color = hex_color.lstrip('#')
+    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+
+def hsv_to_hex(h: float, s: float, v: float) -> str:
+    """Convert HSV to HEX color"""
+    r, g, b = colorsys.hsv_to_rgb(h / 360, s, v)
+    return "#{:02x}{:02x}{:02x}".format(int(r * 255), int(g * 255), int(b * 255))
+
+
+def get_all_color_matches(hex_color: str) -> Dict[str, List[str]]:
+    """
+    Get all color harmony matches for a given hex color.
+    
+    Args:
+        hex_color: Base HEX color code
+        
+    Returns:
+        Dictionary with harmony types and their matching colors
+    """
+    h, s, v = hex_to_hsv(hex_color)
+    
+    matches = {
+        "monochromatic": [],
+        "analogous": [],
+        "complementary": [],
+        "triadic": []
+    }
+    
+    # Monochromatic - same hue, different saturation/value
+    for sv_offset in [-0.3, -0.15, 0.15, 0.3]:
+        new_s = max(0.1, min(1.0, s + sv_offset))
+        new_v = max(0.2, min(1.0, v - sv_offset * 0.5))
+        matches["monochromatic"].append(hsv_to_hex(h, new_s, new_v))
+    
+    # Analogous - hues within 30 degrees
+    for h_offset in [-30, -15, 15, 30]:
+        new_h = (h + h_offset) % 360
+        matches["analogous"].append(hsv_to_hex(new_h, s, v))
+    
+    # Complementary - opposite on color wheel
+    comp_h = (h + 180) % 360
+    matches["complementary"].append(hsv_to_hex(comp_h, s, v))
+    matches["complementary"].append(hsv_to_hex(comp_h, max(0.2, s - 0.2), v))
+    matches["complementary"].append(hsv_to_hex(comp_h, min(1.0, s + 0.2), v))
+    
+    # Triadic - 120 degrees apart
+    for h_offset in [120, 240]:
+        new_h = (h + h_offset) % 360
+        matches["triadic"].append(hsv_to_hex(new_h, s, v))
+    
+    return matches
+
+
+def recommend_matching_colors(
+    hex_color: str,
+    style: str = "balanced",
+    top_n: int = 5
+) -> List[Dict]:
+    """
+    Recommend matching colors based on style preference.
+    
+    Args:
+        hex_color: Base HEX color
+        style: 'bold', 'harmonious', 'balanced', 'conservative'
+        top_n: Number of recommendations
+        
+    Returns:
+        List of recommended colors with metadata
+    """
+    all_matches = get_all_color_matches(hex_color)
+    recommendations = []
+    
+    style_priorities = {
+        "bold": ["complementary", "triadic", "analogous", "monochromatic"],
+        "harmonious": ["analogous", "monochromatic", "triadic", "complementary"],
+        "balanced": ["analogous", "complementary", "triadic", "monochromatic"],
+        "conservative": ["monochromatic", "analogous", "triadic", "complementary"]
+    }
+    
+    priority = style_priorities.get(style, style_priorities["balanced"])
+    
+    for harmony_type in priority:
+        for color in all_matches.get(harmony_type, []):
+            if len(recommendations) >= top_n:
+                break
+            recommendations.append({
+                "hex": color,
+                "harmony_type": harmony_type,
+                "confidence": 0.9 if harmony_type in ["monochromatic", "analogous"] else 0.8
+            })
+        if len(recommendations) >= top_n:
+            break
+    
+    return recommendations
+
+
+# -----------------------------
+# Color Harmony Detection
+# -----------------------------
+def color_harmony(h1: float, h2: float) -> Tuple[str, float]:
+    """
+    Determine color harmony type and score based on hue difference.
+    
+    Args:
+        h1, h2: Hue values in degrees (0-360)
+        
+    Returns:
+        (harmony_type, base_score)
+    """
+    diff = abs(h1 - h2)
+    diff = min(diff, 360 - diff)  # Handle circular hue
+    
+    if diff < 15:
+        return "Monochromatic", 0.95
+    elif diff < 40:
+        return "Analogous", 0.90
+    elif abs(diff - 120) < 15:
+        return "Triadic", 0.85
+    elif abs(diff - 180) < 15:
+        return "Complementary", 0.90
+    else:
+        return "Low Harmony", 0.50
+
+
+# -----------------------------
+# Occasion-Based Weights
+# -----------------------------
+OCCASION_WEIGHTS = {
+    "formal": ["Monochromatic", "Analogous"],
+    "office": ["Monochromatic", "Analogous"],
+    "business": ["Monochromatic", "Analogous"],
+    "casual": ["Analogous", "Triadic"],
+    "party": ["Complementary", "Triadic"],
+    "date": ["Analogous", "Complementary"],
+    "college": ["Monochromatic", "Analogous"],
+    "sports": ["Triadic", "Complementary"]
+}
+
+
+# -----------------------------
+# Rule-Based Outfit Validation
+# -----------------------------
+def is_valid_outfit(items: List[Dict]) -> bool:
+    """
+    Validate if the combination forms a valid outfit.
+    
+    Args:
+        items: List of garment dictionaries with 'type' key
+        
+    Returns:
+        True if valid outfit (has one top and one bottom)
+    """
+    types = [item.get("type", "").lower() for item in items]
+    
+    # Valid: one top and one bottom
+    if types.count("top") == 1 and types.count("bottom") == 1:
+        return True
+    
+    # Valid: single dress
+    if types == ["dress"]:
+        return True
+    
+    # Valid: blazer + bottom + top
+    if sorted(types) == ["blazer", "bottom", "top"]:
+        return True
+    
+    return False
+
+
+# -----------------------------
+# Outfit Recommendation Engine
+# -----------------------------
+def recommend_outfits(garments: List[Dict], occasion: str = "casual") -> List[Dict]:
+    """
+    Generate ranked outfit recommendations from a list of garments.
+    
+    Args:
+        garments: List of garment dictionaries with keys:
+            - name/id: Garment identifier
+            - type: "top", "bottom", or "dress"
+            - color: Color name (optional)
+            - hex/dominant_color: HEX color code
+        occasion: One of "formal", "office", "casual", "party", "date", "college", "sports"
+    
+    Returns:
+        List of outfit recommendations sorted by score, each containing:
+        - outfit: List of garment names
+        - types: List of garment types
+        - colors: List of color names
+        - hexes: List of HEX codes
+        - harmony: Harmony type
+        - occasion: Occasion used
+        - score: Final score (0-1)
+        - items: Original garment objects
+    """
+    recommendations = []
+    
+    # Normalize garment data (handle different key names)
+    normalized = []
+    for g in garments:
+        normalized.append({
+            "name": g.get("name") or g.get("id") or "Unknown",
+            "type": g.get("type", "").lower(),
+            "color": g.get("color") or g.get("name", "Unknown"),
+            "hex": g.get("hex") or g.get("dominant_color") or "#808080",
+            "original": g
+        })
+    
+    # Generate all pairwise combinations
+    for i in range(len(normalized)):
+        for j in range(i + 1, len(normalized)):
+            outfit = [normalized[i], normalized[j]]
+            
+            # Skip invalid combinations
+            if not is_valid_outfit(outfit):
+                continue
+            
+            # Get hex colors
+            hex1 = outfit[0]["hex"]
+            hex2 = outfit[1]["hex"]
+            
+            # Calculate color harmony
+            h1, s1, v1 = hex_to_hsv(hex1)
+            h2, s2, v2 = hex_to_hsv(hex2)
+            
+            harmony, base_score = color_harmony(h1, h2)
+            
+            # Apply occasion boost
+            occasion_boost = 0.2 if harmony in OCCASION_WEIGHTS.get(occasion, []) else 0
+            final_score = round(min(base_score + occasion_boost, 1.0), 2)
+            
+            recommendations.append({
+                "outfit": [outfit[0]["name"], outfit[1]["name"]],
+                "types": [outfit[0]["type"], outfit[1]["type"]],
+                "colors": [outfit[0]["color"], outfit[1]["color"]],
+                "hexes": [hex1, hex2],
+                "harmony": harmony,
+                "occasion": occasion,
+                "score": final_score,
+                "items": [outfit[0]["original"], outfit[1]["original"]]
+            })
+    
+    # Sort by score (descending)
+    recommendations.sort(key=lambda x: x["score"], reverse=True)
+    return recommendations
+
 
 class OutfitRecommender:
     """
-    Advanced outfit recommendation using:
-    - Deep learning embeddings for style similarity
-    - Color theory for harmony matching
-    - Rule-based systems for occasion appropriateness
+    Class wrapper for outfit recommendation functionality.
+    Provides compatibility with existing API.
     """
     
     def __init__(self):
-        """Initialize recommender with ML models"""
-        self.color_harmony = get_color_harmony_recommender()  # MODEL 3
-        self.classifier = get_classifier()  # MODEL 1
-        
-        # Occasion-based rules
-        self.occasion_rules = {
-            'casual': {
-                'preferred_combinations': [
-                    ('top', 'bottom'),
-                    ('dress',),
-                ],
-                'color_style': 'relaxed',  # Allow more variety
-                'formality': 0.3
-            },
-            'formal': {
-                'preferred_combinations': [
-                    ('blazer', 'top', 'bottom'),
-                    ('dress',),
-                    ('top', 'bottom')
-                ],
-                'color_style': 'conservative',  # Complementary or analogous
-                'formality': 0.9
-            },
-            'business': {
-                'preferred_combinations': [
-                    ('blazer', 'top', 'bottom'),
-                    ('blazer', 'dress'),
-                    ('top', 'bottom')
-                ],
-                'color_style': 'professional',  # Neutral + accent
-                'formality': 0.8
-            },
-            'party': {
-                'preferred_combinations': [
-                    ('dress',),
-                    ('top', 'bottom'),
-                    ('blazer', 'top', 'bottom')
-                ],
-                'color_style': 'bold',  # Complementary, triadic
-                'formality': 0.5
-            },
-            'date': {
-                'preferred_combinations': [
-                    ('dress',),
-                    ('top', 'bottom'),
-                ],
-                'color_style': 'harmonious',  # Analogous colors
-                'formality': 0.6
-            },
-            'sports': {
-                'preferred_combinations': [
-                    ('top', 'bottom'),
-                ],
-                'color_style': 'vibrant',  # Any colors OK
-                'formality': 0.2
-            }
-        }
-        
-        print("✅ Outfit Recommender initialized (integrates all 3 ML models)")
+        """Initialize the recommender"""
+        print("✅ Outfit Recommender initialized (Color Harmony + Occasion Rules)")
     
     def recommend_outfits(
         self,
         clothing_items: List[Dict],
-        occasion: str,
+        occasion: str = "casual",
         max_outfits: int = 5,
         items_per_outfit: int = 2
     ) -> List[Dict]:
         """
-        Generate intelligent outfit recommendations
+        Generate intelligent outfit recommendations.
         
         Args:
-            clothing_items: List of items with:
-                {
-                    'id': str,
-                    'type': str,
-                    'colors': List[dict],
-                    'dominant_color': str,
-                    'features': np.ndarray,
-                    'url': str
-                }
+            clothing_items: List of garment dictionaries
             occasion: Occasion type
-            max_outfits: Maximum number of outfits to generate
-            items_per_outfit: Target items per outfit
-        
-        Returns:
-            List of outfit recommendations with scores
-        """
-        if not clothing_items:
-            return []
-        
-        # Get occasion rules
-        rules = self.occasion_rules.get(occasion, self.occasion_rules['casual'])
-        
-        # Group items by type
-        items_by_type = {}
-        for item in clothing_items:
-            item_type = item.get('type', 'other')
-            if item_type not in items_by_type:
-                items_by_type[item_type] = []
-            items_by_type[item_type].append(item)
-        
-        # Generate outfit combinations
-        outfits = []
-        
-        # Try each preferred combination pattern
-        for combination in rules['preferred_combinations']:
-            generated = self._generate_combinations(
-                items_by_type,
-                combination,
-                occasion,
-                rules,
-                max_outfits - len(outfits)
-            )
-            outfits.extend(generated)
+            max_outfits: Maximum number of outfits to return
+            items_per_outfit: Items per outfit (currently always 2)
             
-            if len(outfits) >= max_outfits:
-                break
-        
-        # Sort by score (descending)
-        outfits.sort(key=lambda x: x['score'], reverse=True)
-        
-        return outfits[:max_outfits]
-    
-    def _generate_combinations(
-        self,
-        items_by_type: Dict[str, List[Dict]],
-        combination_pattern: Tuple[str, ...],
-        occasion: str,
-        rules: Dict,
-        max_combinations: int
-    ) -> List[Dict]:
-        """
-        Generate outfit combinations for a specific pattern
-        
-        Args:
-            items_by_type: Items grouped by type
-            combination_pattern: Tuple of types (e.g., ('top', 'bottom'))
-            occasion: Occasion type
-            rules: Occasion-specific rules
-            max_combinations: Maximum combinations to generate
-        
         Returns:
-            List of outfit dictionaries
+            List of outfit recommendations
         """
-        outfits = []
-        
-        # Check if we have all required types
-        available_types = set(items_by_type.keys())
-        required_types = set(combination_pattern)
-        
-        if not required_types.issubset(available_types):
-            return outfits
-        
-        # Generate combinations recursively
-        def generate_recursive(pattern_index: int, current_outfit: List[Dict], used_items: set):
-            if pattern_index >= len(combination_pattern):
-                # Complete outfit - validate no duplicate types
-                outfit_types = [item.get('type') for item in current_outfit]
-                
-                # CRITICAL FIX: Reject outfits with duplicate types (e.g., top + top)
-                if len(outfit_types) != len(set(outfit_types)):
-                    return  # Skip this invalid combination
-                
-                # Calculate score
-                score = self._calculate_outfit_score(current_outfit, occasion, rules)
-                
-                outfits.append({
-                    'items': current_outfit.copy(),
-                    'score': score,
-                    'total_items': len(current_outfit),
-                    'occasion': occasion
-                })
-                return
-            
-            if len(outfits) >= max_combinations:
-                return
-            
-            # Get items for current type
-            current_type = combination_pattern[pattern_index]
-            available_items = items_by_type.get(current_type, [])
-            
-            # Try each item of this type (ONLY items not already used)
-            for item in available_items[:10]:  # Limit to top 10 per type
-                if len(outfits) >= max_combinations:
-                    break
-                
-                # Get unique identifier for this item
-                item_id = item.get('id') or item.get('filename') or str(item)
-                
-                # Skip if this exact item is already in the outfit
-                if item_id in used_items:
-                    continue
-                
-                # NOTE: Removed duplicate type check because ML classification is unreliable
-                # Color harmony and visual similarity will ensure good outfit combinations
-                
-                # Add item to outfit
-                current_outfit.append(item)
-                used_items.add(item_id)
-                
-                # Continue with next type
-                generate_recursive(pattern_index + 1, current_outfit, used_items)
-                
-                # Backtrack
-                current_outfit.pop()
-                used_items.remove(item_id)
-        
-        # Start generation
-        generate_recursive(0, [], set())
-        
-        return outfits
+        all_recommendations = recommend_outfits(clothing_items, occasion)
+        return all_recommendations[:max_outfits]
     
-    def _calculate_outfit_score(
-        self,
-        outfit_items: List[Dict],
-        occasion: str,
-        rules: Dict
-    ) -> float:
-        """
-        Calculate comprehensive outfit score (0-1)
-        
-        Scoring factors:
-        1. Color harmony (40%)
-        2. Style similarity (30%)
-        3. Occasion appropriateness (20%)
-        4. Item variety (10%)
-        
-        Args:
-            outfit_items: List of items in outfit
-            occasion: Occasion type
-            rules: Occasion rules
-        
-        Returns:
-            Score (0-1)
-        """
-        if not outfit_items:
-            return 0.0
-        
-        # 1. Color Harmony Score (40%)
-        color_score = self._calculate_color_harmony(outfit_items, rules['color_style'])
-        
-        # 2. Style Similarity Score (30%)
-        style_score = self._calculate_style_similarity(outfit_items)
-        
-        # 3. Occasion Appropriateness (20%)
-        occasion_score = self._calculate_occasion_fit(outfit_items, rules)
-        
-        # 4. Item Variety Score (10%)
-        variety_score = len(outfit_items) / 3.0  # 3 items = perfect variety
-        variety_score = min(variety_score, 1.0)
-        
-        # Weighted average
-        total_score = (
-            color_score * 0.40 +
-            style_score * 0.30 +
-            occasion_score * 0.20 +
-            variety_score * 0.10
-        )
-        
-        return total_score
-    
-    def _calculate_color_harmony(
-        self,
-        outfit_items: List[Dict],
-        color_style: str
-    ) -> float:
-        """
-        Calculate color harmony score for outfit using MODEL 3
-        
-        Args:
-            outfit_items: List of items
-            color_style: Style preference from occasion rules
-        
-        Returns:
-            Harmony score (0-1)
-        """
-        if len(outfit_items) < 2:
-            return 0.85  # Single item - neutral score
-        
-        # Get dominant colors
-        colors = [item.get('dominant_color', '#808080') for item in outfit_items]
-        
-        # Calculate pairwise harmony scores using MODEL 3
-        harmony_scores = []
-        
-        for i in range(len(colors)):
-            for j in range(i + 1, len(colors)):
-                # Use Color Harmony Recommender (MODEL 3)
-                score = self.color_harmony.calculate_harmony(colors[i], colors[j])
-                harmony_scores.append(score)
-        
-        if not harmony_scores:
-            return 0.85
-        
-        # Average harmony
-        avg_harmony = np.mean(harmony_scores)
-        
-        # Adjust based on color style preference
-        if color_style == 'conservative':
-            # Penalize bold color combinations
-            if avg_harmony > 0.90:
-                avg_harmony *= 0.95
-        elif color_style == 'bold':
-            # Reward complementary colors
-            if 0.90 <= avg_harmony <= 0.95:
-                avg_harmony = min(avg_harmony * 1.05, 1.0)
-        elif color_style == 'professional':
-            # Prefer neutral + accent combinations
-            neutral_count = sum(1 for item in outfit_items 
-                              if self.color_harmony.is_neutral_color(item.get('dominant_color', '#808080')))
-            if neutral_count >= 1:
-                avg_harmony = min(avg_harmony * 1.10, 1.0)
-        
-        return float(avg_harmony)
-    
-    def _calculate_style_similarity(self, outfit_items: List[Dict]) -> float:
-        """
-        Calculate style similarity using deep learning embeddings
-        
-        Args:
-            outfit_items: List of items with 'features' field
-        
-        Returns:
-            Similarity score (0-1)
-        """
-        if len(outfit_items) < 2:
-            return 0.80
-        
-        # Get feature vectors
-        features_list = []
-        for item in outfit_items:
-            if 'features' in item and item['features'] is not None:
-                features_list.append(item['features'])
-        
-        if len(features_list) < 2:
-            return 0.75  # No features available
-        
-        # Calculate pairwise cosine similarities
-        similarities = []
-        
-        for i in range(len(features_list)):
-            for j in range(i + 1, len(features_list)):
-                sim = self.classifier.compute_similarity(
-                    features_list[i],
-                    features_list[j]
-                )
-                similarities.append(sim)
-        
-        if not similarities:
-            return 0.75
-        
-        # Average similarity
-        # Higher similarity = more cohesive style
-        avg_similarity = np.mean(similarities)
-        
-        # Normalize to 0.6-1.0 range (avoid too low scores)
-        normalized = 0.6 + (avg_similarity * 0.4)
-        
-        return float(normalized)
-    
-    def _calculate_occasion_fit(self, outfit_items: List[Dict], rules: Dict) -> float:
-        """
-        Calculate how well outfit fits the occasion
-        
-        Args:
-            outfit_items: List of items
-            rules: Occasion rules
-        
-        Returns:
-            Fit score (0-1)
-        """
-        formality_required = rules.get('formality', 0.5)
-        
-        # Calculate outfit formality
-        formality_scores = {
-            'dress': 0.7,
-            'blazer': 0.9,
-            'top': 0.5,
-            'bottom': 0.5,
-            'shoes': 0.6,
-            'other': 0.4
-        }
-        
-        outfit_formality = np.mean([
-            formality_scores.get(item.get('type', 'other'), 0.5)
-            for item in outfit_items
-        ])
-        
-        # Calculate difference from required formality
-        formality_diff = abs(outfit_formality - formality_required)
-        
-        # Convert to score (smaller difference = higher score)
-        fit_score = 1.0 - (formality_diff * 0.8)
-        fit_score = max(fit_score, 0.5)  # Minimum 0.5
-        
-        return float(fit_score)
-    
-    def _is_neutral_color(self, hex_color: str) -> bool:
-        """
-        Check if color is neutral using MODEL 3
-        
-        Args:
-            hex_color: Hex color code
-        
-        Returns:
-            True if neutral
-        """
-        # Use Color Harmony Recommender (MODEL 3)
-        return self.color_harmony.is_neutral_color(hex_color)
+    def get_best_outfit(self, clothing_items: List[Dict], occasion: str = "casual") -> Dict:
+        """Get the single best outfit recommendation."""
+        recommendations = self.recommend_outfits(clothing_items, occasion, max_outfits=1)
+        return recommendations[0] if recommendations else None
 
 
 # Global recommender instance
 _recommender = None
+
 
 def get_outfit_recommender() -> OutfitRecommender:
     """Get or create global outfit recommender instance"""
@@ -447,3 +340,23 @@ def get_outfit_recommender() -> OutfitRecommender:
     if _recommender is None:
         _recommender = OutfitRecommender()
     return _recommender
+
+
+if __name__ == "__main__":
+    # Example usage
+    garments = [
+        {"name": "Blue Shirt", "type": "top", "color": "Royal Blue", "hex": "#1f3c88"},
+        {"name": "Black Jeans", "type": "bottom", "color": "Black", "hex": "#000000"},
+        {"name": "Red T-Shirt", "type": "top", "color": "Red", "hex": "#c1121f"},
+        {"name": "Khaki Pants", "type": "bottom", "color": "Khaki", "hex": "#c3b091"}
+    ]
+    
+    print("Testing Outfit Recommender...")
+    results = recommend_outfits(garments, occasion="formal")
+    
+    print(f"\nFound {len(results)} outfit combinations:\n")
+    for i, r in enumerate(results, 1):
+        print(f"{i}. {r['outfit'][0]} + {r['outfit'][1]}")
+        print(f"   Colors: {r['colors'][0]} + {r['colors'][1]}")
+        print(f"   Harmony: {r['harmony']} | Score: {r['score']}")
+        print()

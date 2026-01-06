@@ -1,271 +1,232 @@
 """
 MODEL 1: Clothing Classification Model (Top/Bottom Classifier)
 ===================================================================
-Independent ML model for classifying clothing items into categories.
+Custom-trained ML model for binary clothing classification.
 
-Purpose: Determine if a clothing item is a top, bottom, dress, shoes, blazer, or other.
-Technology: ResNet50 transfer learning with ImageNet weights
-Input: Image bytes
-Output: Classification result with confidence score
+Purpose: Determine if a clothing item is a TOP or BOTTOM.
+Technology: Custom TensorFlow/Keras model trained on clothing dataset
+Model file: clothing_classifier_model.keras or .h5
+Input: Image bytes (resized to 150x150 RGB, normalized by 255)
+Output: Binary classification with confidence score
 
-Features:
-- Deep learning-based image classification
-- 6 clothing categories
-- Feature extraction for similarity matching
-- High accuracy with transfer learning
+Classification Logic:
+- Sigmoid output: prediction > 0.5 → 'top', else → 'bottom'
+- Model loaded once at startup for efficiency
 
 Usage:
     classifier = ClothingClassifier()
     result = classifier.predict(image_bytes)
-    # Returns: {'predicted_type': 'top', 'confidence': 0.89, 'features': ndarray}
+    # Returns: {'predicted_type': 'top', 'confidence': 0.89}
 """
 
 import tensorflow as tf
-from tensorflow.keras.applications import ResNet50
-from tensorflow.keras.applications.resnet50 import preprocess_input
-from tensorflow.keras.preprocessing import image
 import numpy as np
 from PIL import Image
 import io
+import os
+import h5py
+
+# Model configuration
+IMAGE_SIZE = (150, 150)
+CLASS_NAMES = ['bottom', 'top']  # Index 0 = bottom, Index 1 = top
+
+# Get model path relative to this file
+MODEL_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH_KERAS = os.path.join(MODEL_DIR, 'clothing_classifier_model.keras')
+MODEL_PATH_H5 = os.path.join(MODEL_DIR, 'clothing_classifier_model.h5')
+
+
+def build_model():
+    """
+    Rebuild the model architecture matching the trained model.
+    Uses EfficientNetB0 as base with custom classification head.
+    """
+    # Input layer
+    inputs = tf.keras.Input(shape=(150, 150, 3))
+    
+    # Base model - EfficientNetB0
+    base_model = tf.keras.applications.EfficientNetB0(
+        include_top=False,
+        weights=None,  # We'll load weights from the saved model
+        input_tensor=inputs
+    )
+    
+    # Classification head
+    x = tf.keras.layers.GlobalAveragePooling2D()(base_model.output)
+    x = tf.keras.layers.Dropout(0.3)(x)
+    x = tf.keras.layers.Dense(128, activation='relu')(x)
+    x = tf.keras.layers.Dropout(0.3)(x)
+    outputs = tf.keras.layers.Dense(1, activation='sigmoid')(x)
+    
+    model = tf.keras.Model(inputs, outputs)
+    return model
+
 
 class ClothingClassifier:
     """
-    Advanced clothing type classifier using ResNet50 architecture
-    Categories: top, bottom, dress, shoes, blazer, other
+    Custom-trained clothing classifier for TOP/BOTTOM detection.
+    Uses a TensorFlow/Keras model with sigmoid output for binary classification.
     """
     
     def __init__(self):
-        """Initialize ResNet50 model with ImageNet weights"""
-        # Load pre-trained ResNet50 (without top classification layer)
-        self.base_model = ResNet50(
-            weights='imagenet',
-            include_top=False,
-            pooling='avg',
-            input_shape=(224, 224, 3)
-        )
+        """Initialize and load the custom-trained model once at startup"""
+        print("🔄 Loading Custom Clothing Classifier...")
         
-        # Freeze base model layers for feature extraction
-        self.base_model.trainable = False
+        # Determine which model file to use (.h5 preferred for compatibility)
+        model_path = None
+        if os.path.exists(MODEL_PATH_H5):
+            model_path = MODEL_PATH_H5  # Try H5 first (more compatible)
+        elif os.path.exists(MODEL_PATH_KERAS):
+            model_path = MODEL_PATH_KERAS
+        else:
+            raise FileNotFoundError(
+                f"Model file not found. Please ensure one of these files is in the backend directory:\n"
+                f"  - clothing_classifier_model.h5\n"
+                f"  - clothing_classifier_model.keras"
+            )
         
-        # Define clothing categories
-        self.categories = {
-            0: 'top',
-            1: 'bottom', 
-            2: 'dress',
-            3: 'shoes',
-            4: 'blazer',
-            5: 'other'
-        }
+        # Try different loading strategies
+        self.model = self._load_model(model_path)
         
-        # ImageNet class mappings for clothing items
-        self.imagenet_mappings = {
-            # Tops
-            'jersey': 'top',
-            'sweatshirt': 'top',
-            'cardigan': 'top',
-            'suit': 'blazer',
-            'lab_coat': 'blazer',
-            'trench_coat': 'blazer',
-            'bow_tie': 'top',
-            'brassiere': 'top',
-            'maillot': 'top',
+        # Store class names for reference
+        self.class_names = CLASS_NAMES
+        self.image_size = IMAGE_SIZE
+        
+        print(f"✅ Custom Clothing Classifier loaded successfully!")
+        print(f"   Model: {model_path}")
+        print(f"   Input size: {IMAGE_SIZE[0]}x{IMAGE_SIZE[1]} RGB")
+        print(f"   Classes: {CLASS_NAMES}")
+    
+    def _load_model(self, model_path):
+        """Try multiple strategies to load the model"""
+        
+        # Strategy 1: For H5 files, rebuild architecture and load weights first (most reliable)
+        if model_path.endswith('.h5'):
+            try:
+                model = build_model()
+                model.load_weights(model_path)
+                print("   ✅ Loaded H5 weights into rebuilt architecture")
+                return model
+            except Exception as e:
+                print(f"   H5 weight loading failed: {str(e)[:50]}...")
             
-            # Bottoms
-            'jean': 'bottom',
-            'miniskirt': 'bottom',
-            'swimming_trunks': 'bottom',
-            
-            # Shoes
-            'loafer': 'shoes',
-            'running_shoe': 'shoes',
-            'sandal': 'shoes',
-            'cowboy_boot': 'shoes',
-            'clog': 'shoes',
-            
-            # Dresses
-            'gown': 'dress',
-            'vestment': 'dress',
-            'abaya': 'dress',
-            'kimono': 'dress',
-            'sarong': 'dress',
-            'poncho': 'dress',
-        }
+            # Try with skip_mismatch
+            try:
+                model = build_model()
+                model.load_weights(model_path, by_name=True, skip_mismatch=True)
+                print("   ✅ Loaded H5 weights with skip_mismatch")
+                return model
+            except Exception as e:
+                print(f"   H5 skip_mismatch loading failed: {str(e)[:50]}...")
         
-        print("✅ ResNet50 Clothing Classifier initialized")
+        # Strategy 2: Try direct loading with compile=False
+        try:
+            model = tf.keras.models.load_model(model_path, compile=False)
+            print("   ✅ Loaded model directly")
+            return model
+        except Exception as e:
+            print(f"   Direct loading failed: {str(e)[:50]}...")
+        
+        # Strategy 3: Use custom object scope
+        try:
+            with tf.keras.utils.custom_object_scope({}):
+                model = tf.keras.models.load_model(model_path, compile=False)
+            print("   ✅ Loaded with custom object scope")
+            return model
+        except Exception as e:
+            print(f"   Custom scope loading failed: {str(e)[:50]}...")
+        
+        raise RuntimeError(f"Failed to load model from {model_path}. Please re-save the model with compatible format.")
     
     def preprocess_image(self, img_bytes: bytes) -> np.ndarray:
         """
-        Preprocess image for ResNet50 input
+        Preprocess image exactly as during training.
+        
         Args:
             img_bytes: Raw image bytes
+            
         Returns:
-            Preprocessed numpy array (1, 224, 224, 3)
+            Preprocessed numpy array (1, 150, 150, 3) normalized to [0, 1]
         """
         # Load image from bytes
         img = Image.open(io.BytesIO(img_bytes))
         
-        # Convert to RGB if needed
+        # Convert to RGB (handles RGBA, grayscale, etc.)
         if img.mode != 'RGB':
             img = img.convert('RGB')
         
-        # Resize to 224x224 (ResNet50 input size)
-        img = img.resize((224, 224), Image.Resampling.LANCZOS)
+        # Resize to model input size (150x150)
+        img_resized = img.resize(self.image_size, Image.Resampling.LANCZOS)
         
-        # Convert to array
-        img_array = image.img_to_array(img)
+        # Convert to numpy array and normalize by 255
+        img_array = np.array(img_resized) / 255.0
         
-        # Add batch dimension
-        img_array = np.expand_dims(img_array, axis=0)
+        # Add batch dimension (1, 150, 150, 3)
+        img_batch = np.expand_dims(img_array, axis=0)
         
-        # Preprocess for ResNet50
-        img_array = preprocess_input(img_array)
-        
-        return img_array
-    
-    def extract_features(self, img_array: np.ndarray) -> np.ndarray:
-        """
-        Extract deep learning features from image
-        Args:
-            img_array: Preprocessed image array
-        Returns:
-            Feature vector (2048 dimensions)
-        """
-        features = self.base_model.predict(img_array, verbose=0)
-        return features[0]  # Remove batch dimension
-    
-    def classify_by_features(self, features: np.ndarray, img_array: np.ndarray = None) -> tuple[str, float]:
-        """
-        Classify clothing using feature similarity and image characteristics
-        Uses ImageNet predictions and aspect ratio to infer clothing type
-        Args:
-            features: Feature vector from ResNet50
-            img_array: Original preprocessed image (optional, for aspect ratio analysis)
-        Returns:
-            (predicted_type, confidence)
-        """
-        # Calculate feature statistics
-        feature_mean = np.mean(features)
-        feature_std = np.std(features)
-        feature_max = np.max(features)
-        
-        # NEW: Use aspect ratio as a strong signal
-        # Bottoms (pants) tend to be more vertical (height > width)
-        # Tops (shirts) tend to be more square or horizontal
-        aspect_ratio = 1.0  # default square
-        if img_array is not None and len(img_array.shape) >= 3:
-            # img_array shape is (1, 224, 224, 3) - all normalized to same size
-            # So we can't use aspect ratio here. Let's use color distribution instead
-            
-            # Calculate color intensity in different regions
-            img_flat = img_array[0]  # Remove batch dimension
-            upper_half = img_flat[:112, :, :]  # Top half
-            lower_half = img_flat[112:, :, :]  # Bottom half
-            
-            upper_brightness = np.mean(upper_half)
-            lower_brightness = np.mean(lower_half)
-            brightness_ratio = upper_brightness / (lower_brightness + 0.001)
-            
-            # Pants often have more uniform brightness, shirts vary more
-            brightness_diff = abs(upper_brightness - lower_brightness)
-        else:
-            brightness_ratio = 1.0
-            brightness_diff = 0
-        
-        # CLASSIFICATION LOGIC - using multiple signals
-        
-        # Strong signal: Shoes have high activation
-        if feature_mean > 0.5 and feature_std > 0.3:
-            predicted_type = 'shoes'
-            confidence = 0.85
-        
-        # Strong signal: Very low variance = plain fabric (likely pants)
-        elif feature_std < 0.15:
-            predicted_type = 'bottom'
-            confidence = 0.80
-        
-        # High variance = textured/detailed (likely shirts/jackets)  
-        elif feature_std > 0.28:
-            if feature_max > 3.5:
-                predicted_type = 'dress'
-                confidence = 0.75
-            elif feature_mean > 0.4:
-                predicted_type = 'blazer'
-                confidence = 0.78
-            else:
-                predicted_type = 'top'
-                confidence = 0.80
-        
-        # Moderate variance with high brightness = colorful top
-        elif feature_mean > 0.35:
-            predicted_type = 'top'
-            confidence = 0.77
-        
-        # Default: alternate based on feature mean
-        elif feature_mean < 0.25:
-            predicted_type = 'bottom'
-            confidence = 0.70
-        else:
-            predicted_type = 'top'
-            confidence = 0.70
-        
-        return predicted_type, confidence
+        return img_batch
     
     def predict(self, img_bytes: bytes) -> dict:
         """
-        Complete prediction pipeline
+        Predict clothing type (top or bottom) from image bytes.
+        
         Args:
             img_bytes: Raw image bytes
+            
         Returns:
             {
-                'predicted_type': str,
-                'confidence': float,
-                'features': ndarray (for similarity matching)
+                'predicted_type': str ('top' or 'bottom'),
+                'confidence': float (0-1, prediction confidence),
+                'raw_prediction': float (raw sigmoid output for debugging)
             }
         """
         # Preprocess image
-        img_array = self.preprocess_image(img_bytes)
+        img_batch = self.preprocess_image(img_bytes)
         
-        # Extract features
-        features = self.extract_features(img_array)
+        # Run prediction (sigmoid output)
+        prediction = self.model.predict(img_batch, verbose=0)[0][0]
         
-        # Classify (pass img_array for additional analysis if needed)
-        predicted_type, confidence = self.classify_by_features(features, img_array)
+        # Apply classification logic: > 0.5 = top, <= 0.5 = bottom
+        if prediction > 0.5:
+            predicted_type = 'top'
+            confidence = float(prediction)
+        else:
+            predicted_type = 'bottom'
+            confidence = float(1 - prediction)
         
         return {
             'predicted_type': predicted_type,
-            'confidence': float(confidence),
-            'features': features  # Store for similarity matching
+            'confidence': confidence,
+            'raw_prediction': float(prediction)  # For debugging/logging
         }
     
-    def compute_similarity(self, features1: np.ndarray, features2: np.ndarray) -> float:
+    def predict_from_path(self, image_path: str) -> tuple:
         """
-        Compute cosine similarity between two feature vectors
+        Predict clothing type from image file path.
+        Convenience method matching the reference implementation.
+        
         Args:
-            features1, features2: Feature vectors from extract_features()
+            image_path: Path to the image file
+            
         Returns:
-            Similarity score (0-1, higher is more similar)
+            (predicted_type, confidence) tuple
         """
-        # Normalize features
-        norm1 = np.linalg.norm(features1)
-        norm2 = np.linalg.norm(features2)
+        with open(image_path, 'rb') as f:
+            img_bytes = f.read()
         
-        if norm1 == 0 or norm2 == 0:
-            return 0.0
-        
-        # Cosine similarity
-        similarity = np.dot(features1, features2) / (norm1 * norm2)
-        
-        # Convert to 0-1 range
-        similarity = (similarity + 1) / 2
-        
-        return float(similarity)
+        result = self.predict(img_bytes)
+        return result['predicted_type'], result['confidence']
 
 
-# Global classifier instance
+# Global classifier instance (singleton pattern for efficiency)
 _classifier = None
 
+
 def get_classifier() -> ClothingClassifier:
-    """Get or create global classifier instance"""
+    """
+    Get or create global classifier instance.
+    Model is loaded once and reused across all requests.
+    """
     global _classifier
     if _classifier is None:
         _classifier = ClothingClassifier()
