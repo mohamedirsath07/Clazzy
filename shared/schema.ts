@@ -5,6 +5,7 @@ export const clothingItemSchema = z.object({
   imageUrl: z.string(),
   type: z.string().optional(),
   detectedType: z.string().optional(),
+  confidence: z.number().min(0).max(1).optional(),  // ML classification confidence (0-1)
 });
 
 export const userProfileSchema = z.object({

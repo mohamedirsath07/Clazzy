@@ -4,8 +4,9 @@ import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Library as LibraryIcon, Trash2, Upload, AlertCircle, Check, X, Plus, Image as ImageIcon, HardDrive, Cloud } from "lucide-react";
+import { Library as LibraryIcon, Trash2, Upload, AlertCircle, Check, X, Plus, Image as ImageIcon, HardDrive, Cloud, Loader2 } from "lucide-react";
 import { getLibraryImages, deleteImageFromFirebase, isFirebaseConfigured, uploadImageToFirebase, getStorageType } from "@/lib/firebase";
+import { detectClothingType } from "@/lib/mlApi";
 import type { ClothingItem } from "@shared/schema";
 
 interface LibraryProps {
@@ -21,6 +22,7 @@ export function Library({ onSelectImages, onClose }: LibraryProps) {
   const [isConfigured, setIsConfigured] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
+  const [isDetecting, setIsDetecting] = useState(false);
   const [storageType, setStorageType] = useState<'firebase' | 'local'>('local');
 
   useEffect(() => {
@@ -64,19 +66,54 @@ export function Library({ onSelectImages, onClose }: LibraryProps) {
     }
   };
 
-  const handleUseSelected = () => {
-    const selectedItems: ClothingItem[] = Array.from(selectedImages).map((url, index) => {
-      const image = libraryImages.find(img => img.url === url);
-      return {
-        id: `library-${Date.now()}-${index}`,
-        imageUrl: url,
-        type: 'other',
-        detectedType: 'other'
-      };
-    });
+  const handleUseSelected = async () => {
+    if (selectedImages.size === 0) return;
     
-    onSelectImages(selectedItems);
-    onClose();
+    setIsDetecting(true);
+    
+    try {
+      // Create items and detect types using ML
+      const selectedItems: ClothingItem[] = [];
+      const urls = Array.from(selectedImages);
+      
+      for (let index = 0; index < urls.length; index++) {
+        const url = urls[index];
+        const image = libraryImages.find(img => img.url === url);
+        
+        // Try to detect type using ML
+        let detectedType: string = 'other';
+        let detectedConfidence: number = 0;
+        try {
+          // Fetch the image and convert to File for ML detection
+          const response = await fetch(url);
+          const blob = await response.blob();
+          const file = new File([blob], image?.name || `image-${index}.jpg`, { type: blob.type });
+          
+          const mlResult = await detectClothingType(file);
+          detectedType = mlResult.predicted_type;
+          detectedConfidence = mlResult.confidence;
+          console.log(`📸 Library item ${index + 1}: detected as "${detectedType}" (${(detectedConfidence * 100).toFixed(0)}%)`);
+        } catch (err) {
+          console.warn(`⚠️ ML detection failed for library image ${index}, using 'other'`, err);
+        }
+        
+        selectedItems.push({
+          id: `library-${Date.now()}-${index}`,
+          imageUrl: url,
+          type: detectedType,
+          detectedType: detectedType,
+          confidence: detectedConfidence  // IMPORTANT: Pass confidence for threshold filtering
+        });
+      }
+      
+      onSelectImages(selectedItems);
+      onClose();
+    } catch (err) {
+      console.error('Failed to process selected images:', err);
+      setError('Failed to detect clothing types. Please try again.');
+    } finally {
+      setIsDetecting(false);
+    }
   };
 
   const handleBulkUpload = useCallback(async (files: FileList | null) => {
@@ -261,9 +298,12 @@ export function Library({ onSelectImages, onClose }: LibraryProps) {
                 {libraryImages.length} items in library • {selectedImages.size} selected
               </p>
               {selectedImages.size > 0 && (
-                <Button onClick={handleUseSelected} className="gap-2">
-                  <Check className="h-4 w-4" />
-                  Use {selectedImages.size} Selected
+                <Button onClick={handleUseSelected} className="gap-2" disabled={isDetecting}>
+                  {isDetecting ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Detecting types...</>
+                  ) : (
+                    <><Check className="h-4 w-4" /> Use {selectedImages.size} Selected</>
+                  )}
                 </Button>
               )}
             </div>
@@ -316,9 +356,12 @@ export function Library({ onSelectImages, onClose }: LibraryProps) {
             Cancel
           </Button>
           {selectedImages.size > 0 && (
-            <Button onClick={handleUseSelected} className="flex-1 gap-2">
-              <Upload className="h-4 w-4" />
-              Use {selectedImages.size} Selected Images
+            <Button onClick={handleUseSelected} className="flex-1 gap-2" disabled={isDetecting}>
+              {isDetecting ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Detecting clothing types...</>
+              ) : (
+                <><Upload className="h-4 w-4" /> Use {selectedImages.size} Selected Images</>
+              )}
             </Button>
           )}
         </div>

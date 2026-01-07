@@ -91,11 +91,19 @@ export function ImageUpload({ onImagesChange, onOpenLibrary, maxImages = 8 }: Im
               try {
                 const mlResult = await detectClothingType(file);
                 const mlType = mlResult.predicted_type;
+                const mlConfidence = mlResult.confidence;
+                
+                console.log(`📸 ML Detection: ${file.name} → ${mlType} (${(mlConfidence * 100).toFixed(0)}%)`);
                 
                 setItems((prev) => {
                   const updated = prev.map((item) =>
                     item.id === newItemId
-                      ? { ...item, type: mlType, detectedType: mlType }
+                      ? { 
+                          ...item, 
+                          type: mlType, 
+                          detectedType: mlType,
+                          confidence: mlConfidence  // IMPORTANT: Pass confidence for threshold filtering
+                        }
                       : item
                   );
                   onImagesChange(updated);

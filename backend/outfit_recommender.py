@@ -13,6 +13,8 @@ Features:
 - Occasion-based scoring (formal, office, casual, party, date, college)
 - Rule-based outfit validation (top + bottom required)
 - Score-based ranking
+- HARD CONSTRAINT: Every outfit MUST have exactly 1 top + 1 bottom
+- Confidence threshold filtering (rejects low-confidence classifications)
 
 Usage:
     from outfit_recommender import recommend_outfits, get_outfit_recommender
@@ -26,7 +28,83 @@ Usage:
 """
 
 import colorsys
-from typing import List, Dict, Tuple
+import logging
+from typing import List, Dict, Tuple, Optional
+from enum import Enum
+
+# Configure logging for outfit recommendations
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+# -----------------------------
+# Type Enums and Constants
+# -----------------------------
+class GarmentType(str, Enum):
+    """Valid garment types - enforced enum for type safety"""
+    TOP = "top"
+    BOTTOM = "bottom"
+    DRESS = "dress"
+    BLAZER = "blazer"
+    UNKNOWN = "unknown"
+
+
+# Confidence threshold - items below this are marked UNKNOWN
+CONFIDENCE_THRESHOLD = 0.70  # 70% minimum confidence required
+
+# Type aliases for normalization
+TYPE_ALIASES = {
+    # Top aliases
+    "top": GarmentType.TOP,
+    "shirt": GarmentType.TOP,
+    "blouse": GarmentType.TOP,
+    "t-shirt": GarmentType.TOP,
+    "tshirt": GarmentType.TOP,
+    "polo": GarmentType.TOP,
+    "sweater": GarmentType.TOP,
+    "hoodie": GarmentType.TOP,
+    "jacket": GarmentType.TOP,
+    "coat": GarmentType.TOP,
+    # Bottom aliases  
+    "bottom": GarmentType.BOTTOM,
+    "pants": GarmentType.BOTTOM,
+    "pant": GarmentType.BOTTOM,
+    "jeans": GarmentType.BOTTOM,
+    "trousers": GarmentType.BOTTOM,
+    "shorts": GarmentType.BOTTOM,
+    "skirt": GarmentType.BOTTOM,
+    # Other
+    "dress": GarmentType.DRESS,
+    "blazer": GarmentType.BLAZER,
+}
+
+
+def normalize_garment_type(raw_type: str, confidence: float = 1.0) -> GarmentType:
+    """
+    Normalize garment type to valid enum with confidence check.
+    
+    Args:
+        raw_type: Raw type string from classification
+        confidence: Classification confidence (0-1)
+        
+    Returns:
+        Normalized GarmentType enum value
+    """
+    # Check confidence threshold first
+    if confidence < CONFIDENCE_THRESHOLD:
+        logger.warning(f"Low confidence ({confidence:.2%}) for type '{raw_type}' - marking as UNKNOWN")
+        return GarmentType.UNKNOWN
+    
+    # Normalize to lowercase and strip
+    normalized = raw_type.strip().lower() if raw_type else ""
+    
+    # Look up in aliases
+    garment_type = TYPE_ALIASES.get(normalized, GarmentType.UNKNOWN)
+    
+    if garment_type == GarmentType.UNKNOWN and normalized:
+        logger.warning(f"Unknown garment type '{raw_type}' - cannot be used in outfits")
+    
+    return garment_type
 
 
 # -----------------------------
@@ -185,41 +263,168 @@ OCCASION_WEIGHTS = {
 
 
 # -----------------------------
-# Rule-Based Outfit Validation
+# Rule-Based Outfit Validation (HARDENED)
 # -----------------------------
-def is_valid_outfit(items: List[Dict]) -> bool:
+def is_valid_outfit(items: List[Dict], return_reason: bool = False) -> bool | Tuple[bool, str]:
     """
     Validate if the combination forms a valid outfit.
+    HARD CONSTRAINT: Must have exactly 1 top + 1 bottom for basic outfits.
     
     Args:
-        items: List of garment dictionaries with 'type' key
+        items: List of garment dictionaries with 'type' and optionally 'confidence' keys
+        return_reason: If True, return (is_valid, reason) tuple for debugging
         
     Returns:
-        True if valid outfit (has one top and one bottom)
+        True if valid outfit, or (True/False, reason_string) if return_reason=True
     """
-    types = [item.get("type", "").lower() for item in items]
+    if not items:
+        reason = "REJECTED: Empty item list"
+        logger.debug(reason)
+        return (False, reason) if return_reason else False
     
-    # Valid: one top and one bottom
-    if types.count("top") == 1 and types.count("bottom") == 1:
-        return True
+    # Normalize all types with confidence checking
+    normalized_types = []
+    for item in items:
+        raw_type = item.get("type", "")
+        confidence = item.get("confidence", 1.0)  # Default to 1.0 if not provided
+        
+        normalized = normalize_garment_type(raw_type, confidence)
+        normalized_types.append(normalized)
     
-    # Valid: single dress
-    if types == ["dress"]:
-        return True
+    # HARD CONSTRAINT: No UNKNOWN types allowed
+    if GarmentType.UNKNOWN in normalized_types:
+        reason = f"REJECTED: Contains UNKNOWN type(s) - raw types: {[item.get('type') for item in items]}"
+        logger.warning(reason)
+        return (False, reason) if return_reason else False
     
-    # Valid: blazer + bottom + top
-    if sorted(types) == ["blazer", "bottom", "top"]:
-        return True
+    # Count types
+    top_count = normalized_types.count(GarmentType.TOP)
+    bottom_count = normalized_types.count(GarmentType.BOTTOM)
+    dress_count = normalized_types.count(GarmentType.DRESS)
+    blazer_count = normalized_types.count(GarmentType.BLAZER)
     
-    return False
+    # ========================================
+    # VALID COMBINATIONS (strict rules)
+    # ========================================
+    
+    # Rule 1: EXACTLY one top + one bottom (most common)
+    if len(items) == 2 and top_count == 1 and bottom_count == 1:
+        reason = "VALID: 1 top + 1 bottom"
+        logger.debug(reason)
+        return (True, reason) if return_reason else True
+    
+    # Rule 2: Single dress (complete outfit)
+    if len(items) == 1 and dress_count == 1:
+        reason = "VALID: Single dress"
+        logger.debug(reason)
+        return (True, reason) if return_reason else True
+    
+    # Rule 3: Blazer + top + bottom (formal 3-piece)
+    if len(items) == 3 and blazer_count == 1 and top_count == 1 and bottom_count == 1:
+        reason = "VALID: Blazer + top + bottom"
+        logger.debug(reason)
+        return (True, reason) if return_reason else True
+    
+    # ========================================
+    # INVALID COMBINATIONS (explicit rejections)
+    # ========================================
+    
+    if top_count >= 2:
+        reason = f"REJECTED: Multiple tops ({top_count}) - cannot pair top+top"
+        logger.warning(reason)
+        return (False, reason) if return_reason else False
+    
+    if bottom_count >= 2:
+        reason = f"REJECTED: Multiple bottoms ({bottom_count}) - cannot pair bottom+bottom"
+        logger.warning(reason)
+        return (False, reason) if return_reason else False
+    
+    if top_count == 0 and bottom_count > 0:
+        reason = f"REJECTED: No top found - have {bottom_count} bottom(s)"
+        logger.warning(reason)
+        return (False, reason) if return_reason else False
+    
+    if bottom_count == 0 and top_count > 0:
+        reason = f"REJECTED: No bottom found - have {top_count} top(s)"
+        logger.warning(reason)
+        return (False, reason) if return_reason else False
+    
+    # Default rejection
+    types_str = [t.value for t in normalized_types]
+    reason = f"REJECTED: Invalid combination - types: {types_str}"
+    logger.warning(reason)
+    return (False, reason) if return_reason else False
+
+
+def separate_by_type(garments: List[Dict]) -> Dict[GarmentType, List[Dict]]:
+    """
+    Separate garments by their normalized type.
+    Filters out items with low confidence or unknown types.
+    
+    Args:
+        garments: List of garment dictionaries
+        
+    Returns:
+        Dictionary mapping GarmentType to list of garments
+    """
+    separated = {
+        GarmentType.TOP: [],
+        GarmentType.BOTTOM: [],
+        GarmentType.DRESS: [],
+        GarmentType.BLAZER: [],
+        GarmentType.UNKNOWN: [],  # For logging purposes
+    }
+    
+    for g in garments:
+        raw_type = g.get("type", "")
+        confidence = g.get("confidence", 1.0)
+        
+        normalized_type = normalize_garment_type(raw_type, confidence)
+        
+        # Create normalized garment dict
+        normalized_garment = {
+            "name": g.get("name") or g.get("id") or "Unknown",
+            "type": normalized_type.value,
+            "normalized_type": normalized_type,
+            "color": g.get("color") or g.get("name", "Unknown"),
+            "hex": g.get("hex") or g.get("dominant_color") or "#808080",
+            "confidence": confidence,
+            "original": g
+        }
+        
+        separated[normalized_type].append(normalized_garment)
+    
+    # Log separation results
+    logger.info(f"📊 Garment separation: tops={len(separated[GarmentType.TOP])}, "
+                f"bottoms={len(separated[GarmentType.BOTTOM])}, "
+                f"dresses={len(separated[GarmentType.DRESS])}, "
+                f"unknown={len(separated[GarmentType.UNKNOWN])}")
+    
+    if separated[GarmentType.UNKNOWN]:
+        logger.warning(f"⚠️ {len(separated[GarmentType.UNKNOWN])} items rejected due to low confidence or unknown type")
+    
+    return separated
 
 
 # -----------------------------
-# Outfit Recommendation Engine
+# Outfit Recommendation Engine (PRODUCTION-GRADE)
 # -----------------------------
 def recommend_outfits(garments: List[Dict], occasion: str = "casual") -> List[Dict]:
     """
-    Generate ranked outfit recommendations from a list of garments.
+    Generate ranked outfit recommendations using EXPLICIT top×bottom pairing.
+    
+    ARCHITECTURE:
+    1. Separate garments by type (with confidence filtering)
+    2. Generate ONLY valid combinations (tops × bottoms)
+    3. Score each combination by color harmony
+    4. Apply occasion-based boosts
+    5. Sort and return top recommendations
+    
+    HARD CONSTRAINTS:
+    - Every outfit MUST have exactly 1 top + 1 bottom
+    - Items with confidence < 70% are EXCLUDED
+    - No duplicate items in same outfit
+    - No top+top or bottom+bottom combinations
     
     Args:
         garments: List of garment dictionaries with keys:
@@ -227,67 +432,126 @@ def recommend_outfits(garments: List[Dict], occasion: str = "casual") -> List[Di
             - type: "top", "bottom", or "dress"
             - color: Color name (optional)
             - hex/dominant_color: HEX color code
+            - confidence: Classification confidence (0-1)
         occasion: One of "formal", "office", "casual", "party", "date", "college", "sports"
     
     Returns:
-        List of outfit recommendations sorted by score, each containing:
-        - outfit: List of garment names
-        - types: List of garment types
-        - colors: List of color names
-        - hexes: List of HEX codes
-        - harmony: Harmony type
-        - occasion: Occasion used
-        - score: Final score (0-1)
-        - items: Original garment objects
+        List of outfit recommendations sorted by score
     """
     recommendations = []
+    rejected_combinations = []  # For debugging
     
-    # Normalize garment data (handle different key names)
-    normalized = []
-    for g in garments:
-        normalized.append({
-            "name": g.get("name") or g.get("id") or "Unknown",
-            "type": g.get("type", "").lower(),
-            "color": g.get("color") or g.get("name", "Unknown"),
-            "hex": g.get("hex") or g.get("dominant_color") or "#808080",
-            "original": g
-        })
+    # Step 1: Separate garments by normalized type (with confidence filtering)
+    separated = separate_by_type(garments)
     
-    # Generate all pairwise combinations
-    for i in range(len(normalized)):
-        for j in range(i + 1, len(normalized)):
-            outfit = [normalized[i], normalized[j]]
-            
-            # Skip invalid combinations
-            if not is_valid_outfit(outfit):
+    tops = separated[GarmentType.TOP]
+    bottoms = separated[GarmentType.BOTTOM]
+    dresses = separated[GarmentType.DRESS]
+    
+    logger.info(f"🎯 Generating outfits for occasion: {occasion}")
+    logger.info(f"   Available: {len(tops)} tops, {len(bottoms)} bottoms, {len(dresses)} dresses")
+    
+    # Step 2: Generate ONLY valid top × bottom combinations
+    # This is the architectural fix - we NEVER iterate all pairs
+    for top in tops:
+        for bottom in bottoms:
+            # Double-check types (defense in depth)
+            if top["normalized_type"] != GarmentType.TOP:
+                logger.error(f"Type integrity violation: {top['name']} is not a TOP")
+                continue
+            if bottom["normalized_type"] != GarmentType.BOTTOM:
+                logger.error(f"Type integrity violation: {bottom['name']} is not a BOTTOM")
                 continue
             
-            # Get hex colors
-            hex1 = outfit[0]["hex"]
-            hex2 = outfit[1]["hex"]
+            # Ensure different items (by ID/name)
+            if top["name"] == bottom["name"]:
+                rejected_combinations.append({
+                    "items": [top["name"], bottom["name"]],
+                    "reason": "Same item cannot be both top and bottom"
+                })
+                continue
             
-            # Calculate color harmony
-            h1, s1, v1 = hex_to_hsv(hex1)
-            h2, s2, v2 = hex_to_hsv(hex2)
+            outfit = [top, bottom]
             
-            harmony, base_score = color_harmony(h1, h2)
+            # Validate outfit (should always pass, but defense in depth)
+            is_valid, reason = is_valid_outfit(
+                [{"type": top["type"], "confidence": top["confidence"]},
+                 {"type": bottom["type"], "confidence": bottom["confidence"]}],
+                return_reason=True
+            )
             
-            # Apply occasion boost
+            if not is_valid:
+                rejected_combinations.append({
+                    "items": [top["name"], bottom["name"]],
+                    "reason": reason
+                })
+                continue
+            
+            # Step 3: Calculate color harmony score
+            hex1 = top["hex"]
+            hex2 = bottom["hex"]
+            
+            try:
+                h1, s1, v1 = hex_to_hsv(hex1)
+                h2, s2, v2 = hex_to_hsv(hex2)
+                harmony, base_score = color_harmony(h1, h2)
+            except Exception as e:
+                logger.warning(f"Color analysis failed for {top['name']} + {bottom['name']}: {e}")
+                harmony, base_score = "Unknown", 0.5
+            
+            # Step 4: Apply occasion boost
             occasion_boost = 0.2 if harmony in OCCASION_WEIGHTS.get(occasion, []) else 0
             final_score = round(min(base_score + occasion_boost, 1.0), 2)
             
             recommendations.append({
-                "outfit": [outfit[0]["name"], outfit[1]["name"]],
-                "types": [outfit[0]["type"], outfit[1]["type"]],
-                "colors": [outfit[0]["color"], outfit[1]["color"]],
+                "outfit": [top["name"], bottom["name"]],
+                "types": [top["type"], bottom["type"]],
+                "colors": [top["color"], bottom["color"]],
                 "hexes": [hex1, hex2],
                 "harmony": harmony,
                 "occasion": occasion,
                 "score": final_score,
-                "items": [outfit[0]["original"], outfit[1]["original"]]
+                "items": [top["original"], bottom["original"]],
+                "total_items": 2,
+                # Debug metadata
+                "_debug": {
+                    "top_confidence": top["confidence"],
+                    "bottom_confidence": bottom["confidence"],
+                    "validation": reason
+                }
             })
     
-    # Sort by score (descending)
+    # Add single dresses as valid outfits
+    for dress in dresses:
+        is_valid, reason = is_valid_outfit(
+            [{"type": dress["type"], "confidence": dress["confidence"]}],
+            return_reason=True
+        )
+        if is_valid:
+            recommendations.append({
+                "outfit": [dress["name"]],
+                "types": [dress["type"]],
+                "colors": [dress["color"]],
+                "hexes": [dress["hex"]],
+                "harmony": "Single Piece",
+                "occasion": occasion,
+                "score": 0.85,  # Base score for dresses
+                "items": [dress["original"]],
+                "total_items": 1,
+                "_debug": {
+                    "confidence": dress["confidence"],
+                    "validation": reason
+                }
+            })
+    
+    # Log summary
+    logger.info(f"✅ Generated {len(recommendations)} valid outfits")
+    if rejected_combinations:
+        logger.warning(f"❌ Rejected {len(rejected_combinations)} invalid combinations")
+        for rej in rejected_combinations[:5]:  # Log first 5
+            logger.debug(f"   Rejected: {rej['items']} - {rej['reason']}")
+    
+    # Step 5: Sort by score (descending)
     recommendations.sort(key=lambda x: x["score"], reverse=True)
     return recommendations
 
@@ -343,20 +607,125 @@ def get_outfit_recommender() -> OutfitRecommender:
 
 
 if __name__ == "__main__":
-    # Example usage
+    # ========================================
+    # UNIT TESTS - Validate Bug Fixes
+    # ========================================
+    import sys
+    
+    print("=" * 60)
+    print("OUTFIT RECOMMENDER UNIT TESTS")
+    print("=" * 60)
+    
+    all_tests_passed = True
+    
+    # Test 1: Valid top + bottom combination
+    print("\n📋 Test 1: Valid top + bottom combination")
+    test_items = [
+        {"name": "Blue Shirt", "type": "top", "confidence": 0.95},
+        {"name": "Black Jeans", "type": "bottom", "confidence": 0.92}
+    ]
+    is_valid, reason = is_valid_outfit(test_items, return_reason=True)
+    if is_valid:
+        print(f"   ✅ PASS: {reason}")
+    else:
+        print(f"   ❌ FAIL: Expected valid, got: {reason}")
+        all_tests_passed = False
+    
+    # Test 2: Invalid bottom + bottom combination (THE BUG)
+    print("\n📋 Test 2: Invalid bottom + bottom combination (THE BUG)")
+    test_items = [
+        {"name": "Black Pants", "type": "bottom", "confidence": 0.88},
+        {"name": "Blue Jeans", "type": "pants", "confidence": 0.91}  # pants = bottom
+    ]
+    is_valid, reason = is_valid_outfit(test_items, return_reason=True)
+    if not is_valid and "Multiple bottoms" in reason:
+        print(f"   ✅ PASS: Correctly rejected - {reason}")
+    else:
+        print(f"   ❌ FAIL: Should reject bottom+bottom, got: valid={is_valid}, {reason}")
+        all_tests_passed = False
+    
+    # Test 3: Invalid top + top combination
+    print("\n📋 Test 3: Invalid top + top combination")
+    test_items = [
+        {"name": "Red Shirt", "type": "shirt", "confidence": 0.85},
+        {"name": "Blue Blouse", "type": "blouse", "confidence": 0.90}
+    ]
+    is_valid, reason = is_valid_outfit(test_items, return_reason=True)
+    if not is_valid and "Multiple tops" in reason:
+        print(f"   ✅ PASS: Correctly rejected - {reason}")
+    else:
+        print(f"   ❌ FAIL: Should reject top+top, got: valid={is_valid}, {reason}")
+        all_tests_passed = False
+    
+    # Test 4: Low confidence item rejection
+    print("\n📋 Test 4: Low confidence item rejection")
+    test_items = [
+        {"name": "Maybe Shirt", "type": "top", "confidence": 0.55},  # Below threshold
+        {"name": "Black Jeans", "type": "bottom", "confidence": 0.92}
+    ]
+    is_valid, reason = is_valid_outfit(test_items, return_reason=True)
+    if not is_valid and "UNKNOWN" in reason:
+        print(f"   ✅ PASS: Low confidence rejected - {reason}")
+    else:
+        print(f"   ❌ FAIL: Should reject low confidence, got: valid={is_valid}, {reason}")
+        all_tests_passed = False
+    
+    # Test 5: Type normalization (pants → bottom)
+    print("\n📋 Test 5: Type normalization (pants → bottom)")
+    normalized = normalize_garment_type("pants", 0.85)
+    if normalized == GarmentType.BOTTOM:
+        print(f"   ✅ PASS: 'pants' correctly normalized to BOTTOM")
+    else:
+        print(f"   ❌ FAIL: Expected BOTTOM, got {normalized}")
+        all_tests_passed = False
+    
+    # Test 6: Full recommendation pipeline (should NOT produce bottom+bottom)
+    print("\n📋 Test 6: Full recommendation pipeline")
     garments = [
-        {"name": "Blue Shirt", "type": "top", "color": "Royal Blue", "hex": "#1f3c88"},
-        {"name": "Black Jeans", "type": "bottom", "color": "Black", "hex": "#000000"},
-        {"name": "Red T-Shirt", "type": "top", "color": "Red", "hex": "#c1121f"},
-        {"name": "Khaki Pants", "type": "bottom", "color": "Khaki", "hex": "#c3b091"}
+        {"name": "Blue Shirt", "type": "top", "hex": "#1f3c88", "confidence": 0.95},
+        {"name": "Black Jeans", "type": "bottom", "hex": "#000000", "confidence": 0.92},
+        {"name": "Red T-Shirt", "type": "top", "hex": "#c1121f", "confidence": 0.88},
+        {"name": "Khaki Pants", "type": "bottom", "hex": "#c3b091", "confidence": 0.91}
     ]
     
-    print("Testing Outfit Recommender...")
     results = recommend_outfits(garments, occasion="formal")
+    invalid_found = False
+    for r in results:
+        types = r["types"]
+        if types.count("top") != 1 or types.count("bottom") != 1:
+            invalid_found = True
+            print(f"   ❌ FAIL: Invalid outfit found - types: {types}")
     
-    print(f"\nFound {len(results)} outfit combinations:\n")
-    for i, r in enumerate(results, 1):
-        print(f"{i}. {r['outfit'][0]} + {r['outfit'][1]}")
-        print(f"   Colors: {r['colors'][0]} + {r['colors'][1]}")
-        print(f"   Harmony: {r['harmony']} | Score: {r['score']}")
-        print()
+    if not invalid_found and len(results) > 0:
+        print(f"   ✅ PASS: Generated {len(results)} valid outfits")
+        for i, r in enumerate(results[:3], 1):
+            print(f"      {i}. {r['outfit'][0]} ({r['types'][0]}) + {r['outfit'][1]} ({r['types'][1]})")
+    elif len(results) == 0:
+        print(f"   ❌ FAIL: No outfits generated")
+        all_tests_passed = False
+    else:
+        all_tests_passed = False
+    
+    # Test 7: Ensure no bottom+bottom ever passes
+    print("\n📋 Test 7: Stress test - only bottoms (should produce 0 outfits)")
+    only_bottoms = [
+        {"name": "Pants 1", "type": "bottom", "hex": "#000000", "confidence": 0.95},
+        {"name": "Pants 2", "type": "pants", "hex": "#333333", "confidence": 0.90},
+        {"name": "Jeans 1", "type": "jeans", "hex": "#4169e1", "confidence": 0.88}
+    ]
+    results = recommend_outfits(only_bottoms, occasion="casual")
+    if len(results) == 0:
+        print(f"   ✅ PASS: Correctly produced 0 outfits (no tops available)")
+    else:
+        print(f"   ❌ FAIL: Should produce 0 outfits, got {len(results)}")
+        all_tests_passed = False
+    
+    # Final result
+    print("\n" + "=" * 60)
+    if all_tests_passed:
+        print("✅ ALL TESTS PASSED - Bug fix verified!")
+        print("   bottom+bottom combinations are now IMPOSSIBLE")
+    else:
+        print("❌ SOME TESTS FAILED - Review the implementation")
+        sys.exit(1)
+    print("=" * 60)

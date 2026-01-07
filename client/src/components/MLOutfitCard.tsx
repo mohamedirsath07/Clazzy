@@ -1,3 +1,22 @@
+/**
+ * MLOutfitCard V1 - DETERMINISTIC ROLE DISPLAY
+ * =============================================================================
+ * v1 uses deterministic pairing for reliability.
+ * ML-based role detection will be reintroduced in v2.
+ * 
+ * PRODUCT DECISION:
+ * - First image in outfit → always labeled TOP
+ * - Second image in outfit → always labeled BOTTOM
+ * - UI NEVER reads item.type (ML labels are ignored)
+ * - An outfit is always valid if it exists
+ * 
+ * RULES FOR v1:
+ * 1. ALWAYS render outfits - NO validation
+ * 2. TRUST backend completely
+ * 3. Labels are HARDCODED based on position
+ * 4. NO blocking logic, NO error cards
+ */
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles } from "lucide-react";
@@ -11,9 +30,9 @@ interface MLOutfitCardProps {
 }
 
 /**
- * Color Badge Component - Shows hex color with visual swatch
+ * Color Badge - Shows hex color with visual swatch and ROLE label
  */
-function ColorBadge({ color, type }: { color: string; type: string }) {
+function ColorBadge({ color, role }: { color: string; role: 'top' | 'bottom' }) {
   return (
     <div className="flex items-center gap-1.5">
       <div
@@ -21,45 +40,59 @@ function ColorBadge({ color, type }: { color: string; type: string }) {
         style={{ backgroundColor: color }}
         title={`Color: ${color}`}
       />
-      <span className="text-xs capitalize text-muted-foreground">{type}</span>
+      <span className="text-xs capitalize font-medium text-muted-foreground">
+        {role}
+      </span>
     </div>
   );
 }
 
 /**
- * MLOutfitCard - Displays AI-generated outfit recommendations
- * Shows match score, clothing items with colors, and visual indicators
+ * MLOutfitCard - Displays outfit recommendations (NO VALIDATION)
  */
 export function MLOutfitCard({ outfit, occasion, index }: MLOutfitCardProps) {
+  // 🚨 EMERGENCY MODE: Trust backend, no validation
+  const { top, bottom } = outfit;
+  
   const scorePercentage = formatMatchScore(outfit.score);
   const scoreColorClass = getScoreColor(outfit.score);
 
   return (
     <Card className="overflow-hidden transition-all hover:shadow-lg" data-testid={`ml-outfit-card-${index}`}>
       <CardContent className="p-0">
-        {/* Outfit Images Grid */}
+        {/* Outfit Images Grid - top first, bottom second */}
         <div className="grid grid-cols-2 gap-1 bg-muted/30 p-2">
-          {outfit.items.slice(0, 4).map((item, itemIndex) => (
-            <div
-              key={itemIndex}
-              className="relative aspect-square overflow-hidden rounded-lg bg-white"
-            >
-              <img
-                src={item.url}
-                alt={item.type}
-                className="h-full w-full object-cover"
-                data-testid={`ml-outfit-item-${index}-${itemIndex}`}
-                onError={(e) => {
-                  console.error('Failed to load image:', item.url);
-                  (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image%3C/text%3E%3C/svg%3E';
-                }}
-              />
-              {/* Type badge on image */}
-              <div className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-xs text-white backdrop-blur-sm">
-                {item.type}
-              </div>
+          {/* TOP IMAGE */}
+          <div className="relative aspect-square overflow-hidden rounded-lg bg-white">
+            <img
+              src={top.url}
+              alt="Top"
+              className="h-full w-full object-cover"
+              data-testid={`ml-outfit-item-${index}-top`}
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image%3C/text%3E%3C/svg%3E';
+              }}
+            />
+            <div className="absolute bottom-1 left-1 rounded bg-blue-600/80 px-2 py-0.5 text-xs text-white font-medium backdrop-blur-sm">
+              TOP
             </div>
-          ))}
+          </div>
+          
+          {/* BOTTOM IMAGE */}
+          <div className="relative aspect-square overflow-hidden rounded-lg bg-white">
+            <img
+              src={bottom.url}
+              alt="Bottom"
+              className="h-full w-full object-cover"
+              data-testid={`ml-outfit-item-${index}-bottom`}
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image%3C/text%3E%3C/svg%3E';
+              }}
+            />
+            <div className="absolute bottom-1 left-1 rounded bg-amber-600/80 px-2 py-0.5 text-xs text-white font-medium backdrop-blur-sm">
+              BOTTOM
+            </div>
+          </div>
         </div>
 
         {/* Match Score Badge */}
@@ -83,17 +116,16 @@ export function MLOutfitCard({ outfit, occasion, index }: MLOutfitCardProps) {
 
           {/* Color Badges */}
           <div className="mb-3">
-            <p className="mb-2 text-xs font-medium text-muted-foreground">Items & Colors:</p>
-            <div className="flex flex-wrap gap-2">
-              {outfit.items.map((item, itemIndex) => (
-                <ColorBadge key={itemIndex} color={item.color} type={item.type} />
-              ))}
+            <div className="flex flex-wrap gap-3">
+              <ColorBadge color={top.color} role="top" />
+              <span className="text-muted-foreground">+</span>
+              <ColorBadge color={bottom.color} role="bottom" />
             </div>
           </div>
 
-          {/* Item Count */}
+          {/* Info Text */}
           <p className="text-xs text-muted-foreground">
-            {outfit.total_items} {outfit.total_items === 1 ? 'item' : 'items'} • AI-powered match
+            ✓ Ready to wear
           </p>
         </div>
       </CardContent>

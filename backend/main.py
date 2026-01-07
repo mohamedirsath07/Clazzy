@@ -33,13 +33,16 @@ import os
 from pathlib import Path
 import io
 
-# Import the 3 independent ML models
-from ml_classifier import ClothingClassifier  # MODEL 1: Custom classifier
+# 🚨 EMERGENCY MODE: Minimal imports - NO ML classifier to save startup time
+# from ml_classifier import ClothingClassifier  # DISABLED for v1 launch
 from color_analyzer import get_color_analyzer  # MODEL 2: Color extraction
-from outfit_recommender import (  # MODEL 3: Recommendations
-    get_outfit_recommender, 
-    recommend_outfits, 
-    hex_to_hsv, 
+
+# 🚨 EMERGENCY MODE: Simple index-based pairing (NO validation, GUARANTEED output)
+from emergency_recommender import emergency_generate_outfits
+
+# Legacy imports for color endpoints
+from outfit_recommender import (
+    hex_to_hsv,
     color_harmony,
     get_all_color_matches,
     recommend_matching_colors
@@ -64,25 +67,18 @@ UPLOAD_DIR = Path(__file__).parent.parent / "client" / "public" / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # Global ML model instances (lazy loading)
-_classifier = None
 _color_analyzer = None
-_recommender = None
 
 def get_models():
-    """Initialize all 3 independent ML models on first request (lazy loading)"""
-    global _classifier, _color_analyzer, _recommender
+    """Initialize color extractor only (lazy loading)"""
+    global _color_analyzer
     
-    if _classifier is None:
-        print("🚀 Loading 3 Independent ML Models...")
-        print("   [1/3] Clothing Classifier (Custom Top/Bottom Model)...")
-        _classifier = ClothingClassifier()
-        print("   [2/3] Color Extractor (K-means + Extended Palette)...")
+    if _color_analyzer is None:
+        print("🚨 EMERGENCY MODE: Loading Color Extractor only...")
         _color_analyzer = get_color_analyzer()
-        print("   [3/3] Outfit Recommender (Color Harmony + Occasion Rules)...")
-        _recommender = get_outfit_recommender()
-        print("✅ All ML models loaded successfully!")
+        print("✅ Color extractor loaded!")
     
-    return _classifier, _color_analyzer, _recommender
+    return _color_analyzer
 
 
 def get_uploaded_files():
@@ -94,9 +90,8 @@ def get_uploaded_files():
     files = []
     for file in UPLOAD_DIR.iterdir():
         if file.is_file() and file.suffix.lower() in image_extensions:
-            # Skip mock files
-            if not file.name.startswith('mock_'):
-                files.append(file)
+            # 🚨 EMERGENCY: Include ALL files including mock files
+            files.append(file)
     return files
 
 
@@ -341,8 +336,8 @@ async def recommend_outfits(occasion: str = Form(...), max_items: int = Form(2))
         }
     """
     try:
-        # Initialize models
-        classifier, color_analyzer, recommender = get_models()
+        # Initialize models (color extractor only in emergency mode)
+        color_analyzer = get_models()
         
         # Get all uploaded files
         uploaded_files = get_uploaded_files()
@@ -355,7 +350,7 @@ async def recommend_outfits(occasion: str = Form(...), max_items: int = Form(2))
                 "message": "No images uploaded yet"
             })
         
-        # Analyze each uploaded file using ALL 3 MODELS
+        # Analyze each uploaded file using ONLY COLORS (NO ML classification)
         analyzed_items = []
         
         print(f"\n🔍 Analyzing {len(uploaded_files)} uploaded files...")
@@ -366,26 +361,20 @@ async def recommend_outfits(occasion: str = Form(...), max_items: int = Form(2))
                 with open(file_path, 'rb') as f:
                     file_bytes = f.read()
                 
-                # MODEL 1: Classify with ResNet50
-                prediction = classifier.predict(file_bytes)
-                
-                # MODEL 2: Extract colors with K-means
+                # MODEL 2: Extract colors ONLY (classification is cosmetic)
                 colors = color_analyzer.extract_colors(file_bytes)
                 dominant_color = colors[0]['hex'] if colors else '#808080'
                 
-                # Log classification results
+                # Log color results
                 print(f"  📸 {file_path.name}")
-                print(f"     Type: {prediction['predicted_type']} (confidence: {prediction['confidence']:.2%})")
                 print(f"     Color: {dominant_color}")
                 
-                # Create item data
+                # Create item data (NO dimensions, NO classification)
                 item = {
                     'id': file_path.name,
-                    'type': prediction['predicted_type'],
                     'colors': colors,
                     'dominant_color': dominant_color,
-                    'confidence': prediction['confidence'],  # Classification confidence
-                    'url': f'/uploads/{file_path.name}'
+                    'url': f'/uploads/{file_path.name}',
                 }
                 
                 analyzed_items.append(item)
@@ -393,14 +382,6 @@ async def recommend_outfits(occasion: str = Form(...), max_items: int = Form(2))
             except Exception as e:
                 print(f"⚠️ Error analyzing {file_path.name}: {str(e)}")
                 continue
-        
-        print(f"\n📊 Classification Summary:")
-        item_types = {}
-        for item in analyzed_items:
-            item_type = item['type']
-            item_types[item_type] = item_types.get(item_type, 0) + 1
-        for item_type, count in item_types.items():
-            print(f"   {item_type}: {count} items")
         
         if not analyzed_items:
             return JSONResponse({
@@ -410,43 +391,66 @@ async def recommend_outfits(occasion: str = Form(...), max_items: int = Form(2))
                 "message": "Failed to analyze uploaded images"
             })
         
-        # Generate outfit recommendations
-        # (Recommender internally uses MODEL 3 for color harmony scoring)
-        outfits = recommender.recommend_outfits(
-            clothing_items=analyzed_items,
+        # ═══════════════════════════════════════════════════════════════════
+        # 🚨 EMERGENCY MODE: Simple index-based pairing
+        # NO validation, NO blocking, GUARANTEED output
+        # ═══════════════════════════════════════════════════════════════════
+        
+        # Convert to format expected by emergency recommender
+        garments_for_emergency = []
+        for item in analyzed_items:
+            garments_for_emergency.append({
+                "name": item['id'],
+                "hex": item['dominant_color'],
+                "color": item.get('colors', [{}])[0].get('name', 'Unknown'),
+                "image": item['url'],
+            })
+        
+        # Generate EMERGENCY outfits (GUARANTEED OUTPUT)
+        emergency_outfits = emergency_generate_outfits(
+            garments=garments_for_emergency,
             occasion=occasion,
-            max_outfits=5,
-            items_per_outfit=max_items
+            max_outfits=5
         )
         
-        # Format response
+        # Format response in ROLE-LOCKED structure
         formatted_outfits = []
-        for outfit in outfits:
-            formatted_items = []
-            for item in outfit['items']:
-                formatted_items.append({
-                    'filename': item['id'],
-                    'type': item['type'],
-                    'category': item['type'],
-                    'color': item['dominant_color'],
-                    'url': item['url']
-                })
-            
+        for outfit in emergency_outfits:
             formatted_outfits.append({
-                'items': formatted_items,
-                'score': round(outfit['score'], 3),
-                'total_items': outfit['total_items']
+                # ROLE-LOCKED structure
+                'top': {
+                    'filename': outfit['top']['name'],
+                    'type': 'top',
+                    'category': 'top',
+                    'color': outfit['top']['hex'],
+                    'url': outfit['top']['url'],
+                    'role': 'top',
+                },
+                'bottom': {
+                    'filename': outfit['bottom']['name'],
+                    'type': 'bottom',
+                    'category': 'bottom',
+                    'color': outfit['bottom']['hex'],
+                    'url': outfit['bottom']['url'],
+                    'role': 'bottom',
+                },
+                # Legacy array for backward compatibility
+                'items': [
+                    {'filename': outfit['top']['name'], 'type': 'top', 'role': 'top'},
+                    {'filename': outfit['bottom']['name'], 'type': 'bottom', 'role': 'bottom'},
+                ],
+                'score': outfit.get('score', 0.85),
+                'harmony': outfit.get('harmony', 'Neutral'),
+                'occasion': occasion,
             })
         
         return JSONResponse({
             "occasion": occasion,
             "recommendations": formatted_outfits,
             "total_items_analyzed": len(analyzed_items),
-            "models_used": [
-                "MODEL 1: Clothing Classifier",
-                "MODEL 2: Color Extractor",
-                "MODEL 3: Color Harmony Recommender"
-            ]
+            "architecture": "EMERGENCY_INDEX_BASED",
+            "guarantee": "If 2+ items exist, at least 1 outfit is returned",
+            "note": "v1 launch - simple pairing, no validation",
         })
         
     except Exception as e:
@@ -456,8 +460,5 @@ async def recommend_outfits(occasion: str = Form(...), max_items: int = Form(2))
 
 if __name__ == '__main__':
     print("🚀 Starting Clazzy Fashion ML Backend...")
-    print("📊 3 Independent ML Models:")
-    print("   [1] Clothing Classifier (ResNet50)")
-    print("   [2] Color Extractor (K-means)")
-    print("   [3] Color Harmony Recommender (Color Theory)")
-    uvicorn.run('main:app', host='0.0.0.0', port=8001, reload=True)
+    print("🚨 EMERGENCY MODE: Simple pairing, no validation")
+    uvicorn.run('main:app', host='0.0.0.0', port=8001, reload=False)

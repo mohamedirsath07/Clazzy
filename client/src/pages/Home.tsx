@@ -117,9 +117,44 @@ export default function Home() {
       const result = await getAIRecommendations(selectedOccasion, clothingItems, 2);
       setMlRecommendations(result);
       
-      if (result.recommendations.length === 0) {
-        setAiError('Please upload at least one top and one bottom for outfit recommendations');
+      // NEW: Check status field for proper error handling
+      if (result.status === 'error') {
+        // Handle specific error reasons with appropriate messages
+        switch (result.reason) {
+          case 'MISSING_TOP_OR_BOTTOM':
+            // Check which type is missing for specific guidance
+            const hasTop = result.debug?.tops_count && result.debug.tops_count > 0;
+            const hasBottom = result.debug?.bottoms_count && result.debug.bottoms_count > 0;
+            if (!hasTop && !hasBottom) {
+              setAiError('No clothing items detected. Please upload images of shirts, pants, or other clothing.');
+            } else if (!hasTop) {
+              setAiError('Please upload at least one TOP (shirt, blouse, t-shirt) to create outfit combinations.');
+            } else {
+              setAiError('Please upload at least one BOTTOM (pants, jeans, skirt) to create outfit combinations.');
+            }
+            break;
+          case 'ALL_ITEMS_UNKNOWN':
+            setAiError('Could not identify clothing types. Please ensure images clearly show clothing items and try again.');
+            break;
+          case 'LOW_CONFIDENCE':
+            setAiError('Clothing detection confidence was too low. Try uploading clearer images of your clothing.');
+            break;
+          case 'NO_ITEMS':
+            setAiError('No items found. Please upload clothing images first.');
+            break;
+          default:
+            setAiError('Could not generate recommendations. Please check your uploaded images.');
+        }
+        // Log debug info for transparency
+        if (result.debug) {
+          console.log('📊 Recommendation Debug Info:', result.debug);
+        }
+      } else if (result.recommendations.length === 0) {
+        // Status is OK but no recommendations (shouldn't happen, but handle gracefully)
+        setAiError('No outfit combinations could be generated from your items.');
       } else {
+        // Success! Clear any previous error and move to results
+        setAiError(null);
         // Automatically move to results page after generating AI recommendations
         setTimeout(() => {
           setCurrentStep(3);
@@ -127,7 +162,7 @@ export default function Home() {
       }
     } catch (error) {
       console.error('AI recommendation error:', error);
-      setAiError('Could not generate recommendations. Please make sure you have uploaded both tops and bottoms.');
+      setAiError('Technical error generating recommendations. Please try again.');
       setMlRecommendations(null);
     } finally {
       setIsLoadingAI(false);
@@ -261,15 +296,27 @@ export default function Home() {
                     </p>
                   )}
 
-                  {/* AI Error Alert */}
+                  {/* AI Error Alert - now with specific messages based on reason */}
                   {aiError && (
                     <Alert variant="destructive" className="mt-4">
                       <AlertDescription>{aiError}</AlertDescription>
                     </Alert>
                   )}
 
+                  {/* Debug info display (helpful for users) */}
+                  {showMLResults && mlRecommendations?.debug && mlRecommendations.status === 'error' && (
+                    <div className="mt-2 text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                      <p>Detected: {mlRecommendations.debug.tops_count} tops, {mlRecommendations.debug.bottoms_count} bottoms</p>
+                      {mlRecommendations.debug.unknown_count > 0 && (
+                        <p className="text-amber-600">
+                          {mlRecommendations.debug.unknown_count} items could not be classified
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   {/* ML Recommendations Display */}
-                  {showMLResults && mlRecommendations && mlRecommendations.recommendations.length > 0 && (
+                  {showMLResults && mlRecommendations && mlRecommendations.status === 'ok' && mlRecommendations.recommendations.length > 0 && (
                     <div className="mt-6">
                       <div className="mb-4 flex items-center justify-between">
                         <h4 className="font-semibold">
@@ -277,6 +324,9 @@ export default function Home() {
                         </h4>
                         <span className="text-xs text-muted-foreground">
                           Analyzed {mlRecommendations.total_items_analyzed} items
+                          {mlRecommendations.debug && (
+                            <> ({mlRecommendations.debug.tops_count} tops, {mlRecommendations.debug.bottoms_count} bottoms)</>
+                          )}
                         </span>
                       </div>
 
@@ -293,10 +343,11 @@ export default function Home() {
                     </div>
                   )}
 
-                  {showMLResults && mlRecommendations && mlRecommendations.recommendations.length === 0 && (
+                  {/* Only show this if status is OK but no recommendations (edge case) */}
+                  {showMLResults && mlRecommendations && mlRecommendations.status === 'ok' && mlRecommendations.recommendations.length === 0 && (
                     <Alert className="mt-4">
                       <AlertDescription>
-                        No outfit combinations found. Try uploading more variety of clothing items.
+                        No outfit combinations could be generated. Try uploading more clothing items.
                       </AlertDescription>
                     </Alert>
                   )}
