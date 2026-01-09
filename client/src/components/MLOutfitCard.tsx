@@ -1,27 +1,16 @@
 /**
- * MLOutfitCard V1 - DETERMINISTIC ROLE DISPLAY
+ * MLOutfitCard V2 - WITH HISTORY SAVE FEATURE
  * =============================================================================
- * v1 uses deterministic pairing for reliability.
- * ML-based role detection will be reintroduced in v2.
- * 
- * PRODUCT DECISION:
- * - First image in outfit → always labeled TOP
- * - Second image in outfit → always labeled BOTTOM
- * - UI NEVER reads item.type (ML labels are ignored)
- * - An outfit is always valid if it exists
- * 
- * RULES FOR v1:
- * 1. ALWAYS render outfits - NO validation
- * 2. TRUST backend completely
- * 3. Labels are HARDCODED based on position
- * 4. NO blocking logic, NO error cards
  */
 
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Sparkles, History, Check } from "lucide-react";
 import type { MLOutfitRecommendation } from "@/lib/mlApi";
 import { formatMatchScore, getScoreColor } from "@/lib/mlApi";
+import { saveOutfitToHistory } from "@/lib/outfitHistory";
 
 interface MLOutfitCardProps {
   outfit: MLOutfitRecommendation;
@@ -48,14 +37,34 @@ function ColorBadge({ color, role }: { color: string; role: 'top' | 'bottom' }) 
 }
 
 /**
- * MLOutfitCard - Displays outfit recommendations (NO VALIDATION)
+ * MLOutfitCard - Displays outfit recommendations with save to history
  */
 export function MLOutfitCard({ outfit, occasion, index }: MLOutfitCardProps) {
-  // 🚨 EMERGENCY MODE: Trust backend, no validation
   const { top, bottom } = outfit;
-  
+  const [isSaved, setIsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
   const scorePercentage = formatMatchScore(outfit.score);
   const scoreColorClass = getScoreColor(outfit.score);
+
+  const handleSaveToHistory = async () => {
+    if (isSaved || isSaving) return;
+
+    setIsSaving(true);
+    try {
+      await saveOutfitToHistory({
+        topUrl: top.url,
+        bottomUrl: bottom.url,
+        occasion,
+        score: outfit.score
+      });
+      setIsSaved(true);
+    } catch (error) {
+      console.error('Failed to save outfit:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <Card className="overflow-hidden transition-all hover:shadow-lg" data-testid={`ml-outfit-card-${index}`}>
@@ -77,7 +86,7 @@ export function MLOutfitCard({ outfit, occasion, index }: MLOutfitCardProps) {
               TOP
             </div>
           </div>
-          
+
           {/* BOTTOM IMAGE */}
           <div className="relative aspect-square overflow-hidden rounded-lg bg-white">
             <img
@@ -123,10 +132,31 @@ export function MLOutfitCard({ outfit, occasion, index }: MLOutfitCardProps) {
             </div>
           </div>
 
-          {/* Info Text */}
-          <p className="text-xs text-muted-foreground">
-            ✓ Ready to wear
-          </p>
+          {/* Ready to wear + Save Button */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              ✓ Ready to wear
+            </p>
+            <Button
+              variant={isSaved ? "secondary" : "outline"}
+              size="sm"
+              className="gap-1.5 text-xs"
+              onClick={handleSaveToHistory}
+              disabled={isSaving || isSaved}
+            >
+              {isSaved ? (
+                <>
+                  <Check className="h-3 w-3" />
+                  Saved
+                </>
+              ) : (
+                <>
+                  <History className="h-3 w-3" />
+                  {isSaving ? 'Saving...' : 'Add to Saved Collection'}
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

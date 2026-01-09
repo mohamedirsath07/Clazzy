@@ -7,6 +7,7 @@ import { Library } from "@/components/Library";
 import { UserDetailsForm } from "@/components/UserDetailsForm";
 import { OccasionSelector } from "@/components/OccasionSelector";
 import { MLOutfitCard } from "@/components/MLOutfitCard";
+import { OutfitHistory } from "@/components/OutfitHistory";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, Sparkles, Loader2 } from "lucide-react";
@@ -30,6 +31,7 @@ export default function Home() {
   const [selectedOccasion, setSelectedOccasion] = useState<Occasion | undefined>();
   const [showLibrary, setShowLibrary] = useState(false);
   const [libraryMode, setLibraryMode] = useState<'top' | 'bottom'>('top');
+  const [showHistory, setShowHistory] = useState(false);
 
   // Update unified clothing items whenever tops or bottoms change
   useEffect(() => {
@@ -135,7 +137,12 @@ export default function Home() {
     <div className="min-h-screen bg-black">
       <Header />
 
-      {currentStep === 0 && <Hero onGetStarted={handleGetStarted} />}
+      {currentStep === 0 && <Hero onGetStarted={handleGetStarted} onViewHistory={() => setShowHistory(true)} />}
+
+      {/* Outfit History Modal */}
+      {showHistory && (
+        <OutfitHistory onClose={() => setShowHistory(false)} />
+      )}
 
       {currentStep > 0 && (
         <div className="container mx-auto px-4 py-12 bg-gradient-to-br from-gray-900 via-black to-gray-900 min-h-screen">
