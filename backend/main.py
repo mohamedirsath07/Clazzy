@@ -309,150 +309,85 @@ async def analyze_complete(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Complete analysis failed: {str(e)}")
 
 
+# ---------------------------------------------------------
+# NEW: Structured Recommendation Payload
+# ---------------------------------------------------------
+from pydantic import BaseModel
+
+class OutfitRequest(BaseModel):
+    occasion: str
+    tops: List[str]
+    bottoms: List[str]
+
 @app.post('/recommend-outfits')
-async def recommend_outfits(occasion: str = Form(...), max_items: int = Form(2)):
+async def recommend_outfits(request: OutfitRequest):
     """
-    Generate intelligent outfit recommendations using ALL 3 MODELS
-    
-    Integration of all 3 independent ML models:
-    - MODEL 1: Classify each item's type
-    - MODEL 2: Extract dominant colors
-    - MODEL 3: Calculate color harmony scores
-    
-    Plus additional logic:
-    - Deep learning style embeddings for similarity
-    - Occasion-based matching rules
-    
-    Args:
-        occasion: Event type (casual/formal/business/party/date/sports)
-        max_items: Items per outfit (default: 2)
-    
-    Returns:
-        {
-            "occasion": str,
-            "recommendations": List[dict] with scored outfits,
-            "total_items_analyzed": int,
-            "models_used": ["MODEL 1", "MODEL 2", "MODEL 3"]
-        }
+    Generate outfits from explicit lists of tops and bottoms.
+    Guaranteed Cartesian Product: Tops x Bottoms.
+    NO ML filtering.
     """
     try:
-        # Initialize models (color extractor only in emergency mode)
-        color_analyzer = get_models()
-        
-        # Get all uploaded files
-        uploaded_files = get_uploaded_files()
-        
-        if not uploaded_files:
-            return JSONResponse({
+        occasion = request.occasion
+        tops = request.tops
+        bottoms = request.bottoms
+
+        # Basic validation
+        if not tops or not bottoms:
+             return JSONResponse({
                 "occasion": occasion,
                 "recommendations": [],
                 "total_items_analyzed": 0,
-                "message": "No images uploaded yet"
+                "status": "error",
+                "reason": "MISSING_TOP_OR_BOTTOM" 
             })
+
+        formatted_outfits = []
         
-        # Analyze each uploaded file using ONLY COLORS (NO ML classification)
-        analyzed_items = []
-        
-        print(f"\n🔍 Analyzing {len(uploaded_files)} uploaded files...")
-        
-        for file_path in uploaded_files:
-            try:
-                # Read file
-                with open(file_path, 'rb') as f:
-                    file_bytes = f.read()
+        # Cartesian Product
+        for top_file in tops:
+            for bottom_file in bottoms:
                 
-                # MODEL 2: Extract colors ONLY (classification is cosmetic)
-                colors = color_analyzer.extract_colors(file_bytes)
-                dominant_color = colors[0]['hex'] if colors else '#808080'
+                # Construct URLs (assuming they are in /uploads/)
+                # Ideally we would check if file exists, but for speed we assume existence
                 
-                # Log color results
-                print(f"  📸 {file_path.name}")
-                print(f"     Color: {dominant_color}")
-                
-                # Create item data (NO dimensions, NO classification)
-                item = {
-                    'id': file_path.name,
-                    'colors': colors,
-                    'dominant_color': dominant_color,
-                    'url': f'/uploads/{file_path.name}',
+                # Create Outfit Object
+                outfit = {
+                    'top': {
+                        'filename': top_file,
+                        'type': 'top',
+                        'category': 'top',
+                        'color': '#808080', # Default gray if not analyzed
+                        'url': f'/uploads/{top_file}',
+                        'role': 'top',
+                    },
+                    'bottom': {
+                        'filename': bottom_file,
+                        'type': 'bottom',
+                        'category': 'bottom',
+                        'color': '#808080',
+                        'url': f'/uploads/{bottom_file}',
+                        'role': 'bottom',
+                    },
+                    'score': 0.95, # High score for user-created pairs
+                    'harmony': 'User Match',
+                    'occasion': occasion,
                 }
                 
-                analyzed_items.append(item)
+                # Legacy array support
+                outfit['items'] = [outfit['top'], outfit['bottom']]
                 
-            except Exception as e:
-                print(f"⚠️ Error analyzing {file_path.name}: {str(e)}")
-                continue
-        
-        if not analyzed_items:
-            return JSONResponse({
-                "occasion": occasion,
-                "recommendations": [],
-                "total_items_analyzed": 0,
-                "message": "Failed to analyze uploaded images"
-            })
-        
-        # ═══════════════════════════════════════════════════════════════════
-        # 🚨 EMERGENCY MODE: Simple index-based pairing
-        # NO validation, NO blocking, GUARANTEED output
-        # ═══════════════════════════════════════════════════════════════════
-        
-        # Convert to format expected by emergency recommender
-        garments_for_emergency = []
-        for item in analyzed_items:
-            garments_for_emergency.append({
-                "name": item['id'],
-                "hex": item['dominant_color'],
-                "color": item.get('colors', [{}])[0].get('name', 'Unknown'),
-                "image": item['url'],
-            })
-        
-        # Generate EMERGENCY outfits (GUARANTEED OUTPUT)
-        emergency_outfits = emergency_generate_outfits(
-            garments=garments_for_emergency,
-            occasion=occasion,
-            max_outfits=5
-        )
-        
-        # Format response in ROLE-LOCKED structure
-        formatted_outfits = []
-        for outfit in emergency_outfits:
-            formatted_outfits.append({
-                # ROLE-LOCKED structure
-                'top': {
-                    'filename': outfit['top']['name'],
-                    'type': 'top',
-                    'category': 'top',
-                    'color': outfit['top']['hex'],
-                    'url': outfit['top']['url'],
-                    'role': 'top',
-                },
-                'bottom': {
-                    'filename': outfit['bottom']['name'],
-                    'type': 'bottom',
-                    'category': 'bottom',
-                    'color': outfit['bottom']['hex'],
-                    'url': outfit['bottom']['url'],
-                    'role': 'bottom',
-                },
-                # Legacy array for backward compatibility
-                'items': [
-                    {'filename': outfit['top']['name'], 'type': 'top', 'role': 'top'},
-                    {'filename': outfit['bottom']['name'], 'type': 'bottom', 'role': 'bottom'},
-                ],
-                'score': outfit.get('score', 0.85),
-                'harmony': outfit.get('harmony', 'Neutral'),
-                'occasion': occasion,
-            })
-        
+                formatted_outfits.append(outfit)
+
+        # Limit to 20 outfits just in case
+        formatted_outfits = formatted_outfits[:20]
+
         return JSONResponse({
             "occasion": occasion,
             "recommendations": formatted_outfits,
-            "total_items_analyzed": len(analyzed_items),
-            "architecture": "EMERGENCY_INDEX_BASED",
-            "guarantee": "If 2+ items exist, at least 1 outfit is returned",
-            "note": "v1 launch - simple pairing, no validation",
+            "total_items_analyzed": len(tops) + len(bottoms),
+            "status": "ok"
         })
-        
+
     except Exception as e:
         print(f"❌ Error in recommend_outfits: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Recommendation failed: {str(e)}")

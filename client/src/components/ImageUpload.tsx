@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Upload, X, Loader2, Library as LibraryIcon, Save, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,15 +12,24 @@ interface ImageUploadProps {
   onImagesChange: (items: ClothingItem[]) => void;
   onOpenLibrary: () => void;
   maxImages?: number;
+  forcedType?: 'top' | 'bottom';
+  externalItems?: ClothingItem[]; // Items from parent (e.g., Library)
 }
 
-export function ImageUpload({ onImagesChange, onOpenLibrary, maxImages = 8 }: ImageUploadProps) {
+export function ImageUpload({ onImagesChange, onOpenLibrary, maxImages = 8, forcedType, externalItems }: ImageUploadProps) {
   const [items, setItems] = useState<ClothingItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [detectingTypes, setDetectingTypes] = useState<Set<string>>(new Set());
   const [saveToLibrary, setSaveToLibrary] = useState(true);
   const [uploadingToFirebase, setUploadingToFirebase] = useState<Set<string>>(new Set());
   const [firebaseConfigured] = useState(isFirebaseConfigured());
+
+  // Sync internal items with external items from parent
+  useEffect(() => {
+    if (externalItems) {
+      setItems(externalItems);
+    }
+  }, [externalItems]);
 
   const handleFileSelect = useCallback(
     async (files: FileList | null) => {
@@ -36,18 +45,25 @@ export function ImageUpload({ onImagesChange, onOpenLibrary, maxImages = 8 }: Im
           reader.onload = async (e) => {
             const imageUrl = e.target?.result as string;
             const newItemId = Math.random().toString(36).substr(2, 9);
-            
-            // Quick filename check first
-            let detectedType = quickDetectTypeFromFilename(file.name);
-            
-            // Create item with initial type
+
+            // IF FORCED TYPE IS SET, USE IT IMMEDIATELY (Bypass ML)
+            let finalType: string | undefined = forcedType;
+            let finalConfidence: number | undefined = forcedType ? 1.0 : undefined;
+
+            if (!forcedType) {
+              // Quick filename check first if not forced
+              finalType = quickDetectTypeFromFilename(file.name) || undefined;
+            }
+
+            // Create item 
             const newItem: ClothingItem = {
               id: newItemId,
               imageUrl,
-              type: detectedType || undefined,
-              detectedType: detectedType || undefined,
+              type: finalType,
+              detectedType: finalType,
+              confidence: finalConfidence,
             };
-            
+
             setItems((prev) => {
               const updated = [...prev, newItem];
               onImagesChange(updated);
@@ -57,11 +73,11 @@ export function ImageUpload({ onImagesChange, onOpenLibrary, maxImages = 8 }: Im
             // Upload to Firebase if enabled and configured
             if (saveToLibrary && firebaseConfigured) {
               setUploadingToFirebase((prev) => new Set(prev).add(newItemId));
-              
+
               try {
                 const firebaseUrl = await uploadImageToFirebase(file);
                 console.log('Image uploaded to Firebase:', firebaseUrl);
-                
+
                 // Update item with Firebase URL
                 setItems((prev) => {
                   const updated = prev.map((item) =>
@@ -84,26 +100,26 @@ export function ImageUpload({ onImagesChange, onOpenLibrary, maxImages = 8 }: Im
               }
             }
 
-            // If we couldn't detect from filename, use ML
-            if (!detectedType) {
+            // Only run ML if NO Type is assigned yet (neither forced nor detected from filename)
+            if (!finalType) {
               setDetectingTypes((prev) => new Set(prev).add(newItemId));
-              
+
               try {
                 const mlResult = await detectClothingType(file);
                 const mlType = mlResult.predicted_type;
                 const mlConfidence = mlResult.confidence;
-                
+
                 console.log(`📸 ML Detection: ${file.name} → ${mlType} (${(mlConfidence * 100).toFixed(0)}%)`);
-                
+
                 setItems((prev) => {
                   const updated = prev.map((item) =>
                     item.id === newItemId
-                      ? { 
-                          ...item, 
-                          type: mlType, 
-                          detectedType: mlType,
-                          confidence: mlConfidence  // IMPORTANT: Pass confidence for threshold filtering
-                        }
+                      ? {
+                        ...item,
+                        type: mlType,
+                        detectedType: mlType,
+                        confidence: mlConfidence
+                      }
                       : item
                   );
                   onImagesChange(updated);
@@ -124,7 +140,7 @@ export function ImageUpload({ onImagesChange, onOpenLibrary, maxImages = 8 }: Im
         }
       }
     },
-    [items.length, maxImages, onImagesChange, saveToLibrary, firebaseConfigured]
+    [items.length, maxImages, onImagesChange, saveToLibrary, firebaseConfigured, forcedType]
   );
 
   const handleDrop = useCallback(
@@ -174,7 +190,7 @@ export function ImageUpload({ onImagesChange, onOpenLibrary, maxImages = 8 }: Im
             )}
           </Label>
         </div>
-        
+
         <Button
           variant="outline"
           onClick={onOpenLibrary}
@@ -193,15 +209,14 @@ export function ImageUpload({ onImagesChange, onOpenLibrary, maxImages = 8 }: Im
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
-            className={`relative transition-colors ${
-              isDragging
-                ? "bg-primary/10 border-primary"
-                : "hover:bg-accent/50"
-            }`}
+            className={`relative transition-colors ${isDragging
+              ? "bg-primary/10 border-primary"
+              : "hover:bg-accent/50"
+              }`}
           >
             <input
               type="file"
-              id="file-upload"
+              id={`file-upload-${forcedType || 'default'}`}
               className="hidden"
               accept="image/*"
               multiple
@@ -209,7 +224,7 @@ export function ImageUpload({ onImagesChange, onOpenLibrary, maxImages = 8 }: Im
               disabled={!canAddMore}
             />
             <label
-              htmlFor="file-upload"
+              htmlFor={`file-upload-${forcedType || 'default'}`}
               className={`flex min-h-48 ${canAddMore ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'} flex-col items-center justify-center p-6 text-center`}
             >
               <Upload className="mb-3 h-10 w-10 text-muted-foreground" />
@@ -261,7 +276,7 @@ export function ImageUpload({ onImagesChange, onOpenLibrary, maxImages = 8 }: Im
                   className="h-full w-full object-cover"
                   data-testid={`image-clothing-${item.id}`}
                 />
-                
+
                 {/* Upload Status Badge */}
                 {uploadingToFirebase.has(item.id) && (
                   <div className="absolute top-2 left-2 rounded-md bg-blue-600 px-2 py-1 text-xs text-white backdrop-blur-sm flex items-center gap-1">
@@ -269,7 +284,7 @@ export function ImageUpload({ onImagesChange, onOpenLibrary, maxImages = 8 }: Im
                     Saving...
                   </div>
                 )}
-                
+
                 {/* ML Type Badge */}
                 {item.detectedType && (
                   <div className="absolute bottom-2 left-2 rounded-md bg-black/70 px-2 py-1 text-xs text-white backdrop-blur-sm">
@@ -283,7 +298,7 @@ export function ImageUpload({ onImagesChange, onOpenLibrary, maxImages = 8 }: Im
                     )}
                   </div>
                 )}
-                
+
                 <Button
                   variant="destructive"
                   size="icon"
