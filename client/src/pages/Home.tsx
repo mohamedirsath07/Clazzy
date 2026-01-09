@@ -358,6 +358,7 @@ export default function Home() {
         <Library
           onSelectImages={handleLibrarySelect}
           onClose={() => setShowLibrary(false)}
+          filterType={libraryMode}
         />
       )}
     </div>

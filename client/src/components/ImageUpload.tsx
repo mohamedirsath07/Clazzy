@@ -75,8 +75,9 @@ export function ImageUpload({ onImagesChange, onOpenLibrary, maxImages = 8, forc
               setUploadingToFirebase((prev) => new Set(prev).add(newItemId));
 
               try {
-                const firebaseUrl = await uploadImageToFirebase(file);
-                console.log('Image uploaded to Firebase:', firebaseUrl);
+                // Pass forcedType so library images are tagged correctly
+                const firebaseUrl = await uploadImageToFirebase(file, 'default', forcedType);
+                console.log(`Image uploaded to library as ${forcedType || 'untyped'}:`, firebaseUrl);
 
                 // Update item with Firebase URL
                 setItems((prev) => {

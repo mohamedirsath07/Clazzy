@@ -10,6 +10,7 @@ interface LibraryImage {
   name: string;
   path: string;
   timestamp: number;
+  clothingType?: 'top' | 'bottom'; // Type tag for filtering
 }
 
 const DB_NAME = 'StyleAI_Library';
@@ -38,38 +39,40 @@ function openDatabase(): Promise<IDBDatabase> {
 /**
  * Upload an image to local storage (IndexedDB)
  * @param file - Image file to upload
+ * @param clothingType - Optional clothing type tag (top/bottom)
  * @returns Data URL of the image
  */
-export async function uploadImageToLocal(file: File): Promise<string> {
+export async function uploadImageToLocal(file: File, clothingType?: 'top' | 'bottom'): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    
+
     reader.onload = async (e) => {
       try {
         const dataUrl = e.target?.result as string;
         const timestamp = Date.now();
         const id = `${timestamp}_${file.name}`;
-        
+
         const imageData: LibraryImage = {
           id,
           url: dataUrl,
           name: file.name,
           path: `local/${id}`,
-          timestamp
+          timestamp,
+          clothingType // Store the type tag
         };
 
         const db = await openDatabase();
         const transaction = db.transaction([STORE_NAME], 'readwrite');
         const store = transaction.objectStore(STORE_NAME);
-        
+
         store.add(imageData);
-        
+
         transaction.oncomplete = () => {
           db.close();
-          console.log('✅ Image saved to local library:', file.name);
+          console.log(`✅ Image saved to local library: ${file.name} (${clothingType || 'untyped'})`);
           resolve(dataUrl);
         };
-        
+
         transaction.onerror = () => {
           db.close();
           reject(transaction.error);
@@ -78,7 +81,7 @@ export async function uploadImageToLocal(file: File): Promise<string> {
         reject(error);
       }
     };
-    
+
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
@@ -86,27 +89,28 @@ export async function uploadImageToLocal(file: File): Promise<string> {
 
 /**
  * Get all images from local library
- * @returns Array of image data
+ * @returns Array of image data including type
  */
-export async function getLocalLibraryImages(): Promise<Array<{url: string, name: string, path: string}>> {
+export async function getLocalLibraryImages(): Promise<Array<{ url: string, name: string, path: string, clothingType?: 'top' | 'bottom' }>> {
   try {
     const db = await openDatabase();
     const transaction = db.transaction([STORE_NAME], 'readonly');
     const store = transaction.objectStore(STORE_NAME);
-    
+
     return new Promise((resolve, reject) => {
       const request = store.getAll();
-      
+
       request.onsuccess = () => {
         db.close();
         const images = request.result.map((item: LibraryImage) => ({
           url: item.url,
           name: item.name,
-          path: item.path
+          path: item.path,
+          clothingType: item.clothingType
         }));
         resolve(images);
       };
-      
+
       request.onerror = () => {
         db.close();
         reject(request.error);
@@ -128,16 +132,16 @@ export async function deleteImageFromLocal(imagePath: string): Promise<void> {
     const db = await openDatabase();
     const transaction = db.transaction([STORE_NAME], 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
-    
+
     store.delete(id);
-    
+
     return new Promise((resolve, reject) => {
       transaction.oncomplete = () => {
         db.close();
         console.log('✅ Image deleted from local library');
         resolve();
       };
-      
+
       transaction.onerror = () => {
         db.close();
         reject(transaction.error);
@@ -157,16 +161,16 @@ export async function clearLocalLibrary(): Promise<void> {
     const db = await openDatabase();
     const transaction = db.transaction([STORE_NAME], 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
-    
+
     store.clear();
-    
+
     return new Promise((resolve, reject) => {
       transaction.oncomplete = () => {
         db.close();
         console.log('✅ Local library cleared');
         resolve();
       };
-      
+
       transaction.onerror = () => {
         db.close();
         reject(transaction.error);
@@ -185,11 +189,11 @@ export async function getLocalLibraryStats(): Promise<{ count: number, estimated
   try {
     const images = await getLocalLibraryImages();
     const count = images.length;
-    
+
     // Estimate size (rough calculation based on base64 data URLs)
     const totalSize = images.reduce((sum, img) => sum + img.url.length, 0);
     const sizeInMB = (totalSize / 1024 / 1024).toFixed(2);
-    
+
     return {
       count,
       estimatedSize: `${sizeInMB} MB`

@@ -12,10 +12,21 @@ import type { ClothingItem } from "@shared/schema";
 interface LibraryProps {
   onSelectImages: (items: ClothingItem[]) => void;
   onClose: () => void;
+  filterType?: 'top' | 'bottom'; // Filter to show only tops or bottoms
 }
 
-export function Library({ onSelectImages, onClose }: LibraryProps) {
-  const [libraryImages, setLibraryImages] = useState<Array<{url: string, name: string, path: string}>>([]);
+// Helper to guess type from filename
+function guessTypeFromName(name: string): 'top' | 'bottom' | 'unknown' {
+  const n = name.toLowerCase();
+  const topKeywords = ['shirt', 'tee', 'top', 'blouse', 'sweater', 'hoodie', 'jacket', 'polo'];
+  const bottomKeywords = ['pant', 'jean', 'trouser', 'short', 'skirt', 'bottom', 'cargo'];
+  for (const kw of topKeywords) if (n.includes(kw)) return 'top';
+  for (const kw of bottomKeywords) if (n.includes(kw)) return 'bottom';
+  return 'unknown';
+}
+
+export function Library({ onSelectImages, onClose, filterType }: LibraryProps) {
+  const [libraryImages, setLibraryImages] = useState<Array<{ url: string, name: string, path: string, clothingType?: 'top' | 'bottom' }>>([]);
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +35,7 @@ export function Library({ onSelectImages, onClose }: LibraryProps) {
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const [isDetecting, setIsDetecting] = useState(false);
   const [storageType, setStorageType] = useState<'firebase' | 'local'>('local');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'top' | 'bottom'>(filterType || 'all');
 
   useEffect(() => {
     loadLibraryImages();
@@ -31,10 +43,20 @@ export function Library({ onSelectImages, onClose }: LibraryProps) {
     setStorageType(getStorageType());
   }, []);
 
+  // Filter images based on active filter using stored clothingType
+  // When filtering by type, only show items that match (using stored type, fallback to filename guess)
+  const filteredImages = activeFilter === 'all'
+    ? libraryImages
+    : libraryImages.filter(img => {
+      // First check stored clothingType, then fallback to filename guess
+      const itemType = img.clothingType || guessTypeFromName(img.name);
+      return itemType === activeFilter;
+    });
+
   const loadLibraryImages = async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const images = await getLibraryImages();
       setLibraryImages(images);
@@ -68,18 +90,18 @@ export function Library({ onSelectImages, onClose }: LibraryProps) {
 
   const handleUseSelected = async () => {
     if (selectedImages.size === 0) return;
-    
+
     setIsDetecting(true);
-    
+
     try {
       // Create items and detect types using ML
       const selectedItems: ClothingItem[] = [];
       const urls = Array.from(selectedImages);
-      
+
       for (let index = 0; index < urls.length; index++) {
         const url = urls[index];
         const image = libraryImages.find(img => img.url === url);
-        
+
         // Try to detect type using ML
         let detectedType: string = 'other';
         let detectedConfidence: number = 0;
@@ -88,7 +110,7 @@ export function Library({ onSelectImages, onClose }: LibraryProps) {
           const response = await fetch(url);
           const blob = await response.blob();
           const file = new File([blob], image?.name || `image-${index}.jpg`, { type: blob.type });
-          
+
           const mlResult = await detectClothingType(file);
           detectedType = mlResult.predicted_type;
           detectedConfidence = mlResult.confidence;
@@ -96,7 +118,7 @@ export function Library({ onSelectImages, onClose }: LibraryProps) {
         } catch (err) {
           console.warn(`⚠️ ML detection failed for library image ${index}, using 'other'`, err);
         }
-        
+
         selectedItems.push({
           id: `library-${Date.now()}-${index}`,
           imageUrl: url,
@@ -105,7 +127,7 @@ export function Library({ onSelectImages, onClose }: LibraryProps) {
           confidence: detectedConfidence  // IMPORTANT: Pass confidence for threshold filtering
         });
       }
-      
+
       onSelectImages(selectedItems);
       onClose();
     } catch (err) {
@@ -123,11 +145,11 @@ export function Library({ onSelectImages, onClose }: LibraryProps) {
     setUploadProgress({ current: 0, total: files.length });
     setError(null);
 
-    const uploadedUrls: Array<{url: string, name: string, path: string}> = [];
+    const uploadedUrls: Array<{ url: string, name: string, path: string }> = [];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      
+
       if (!file.type.startsWith('image/')) {
         console.warn(`Skipping non-image file: ${file.name}`);
         continue;
@@ -135,8 +157,10 @@ export function Library({ onSelectImages, onClose }: LibraryProps) {
 
       try {
         setUploadProgress({ current: i + 1, total: files.length });
-        const url = await uploadImageToFirebase(file);
-        
+        // Pass the currently active filter as the clothing type to tag the upload
+        const typeToUse = activeFilter === 'all' ? undefined : activeFilter;
+        const url = await uploadImageToFirebase(file, 'default', typeToUse);
+
         // Add to uploaded list
         uploadedUrls.push({
           url,
@@ -150,7 +174,7 @@ export function Library({ onSelectImages, onClose }: LibraryProps) {
 
     // Reload library to get all images including newly uploaded
     await loadLibraryImages();
-    
+
     setIsUploading(false);
     setUploadProgress({ current: 0, total: 0 });
 
@@ -242,8 +266,8 @@ export function Library({ onSelectImages, onClose }: LibraryProps) {
                   {uploadProgress.current} / {uploadProgress.total}
                 </span>
               </div>
-              <Progress 
-                value={(uploadProgress.current / uploadProgress.total) * 100} 
+              <Progress
+                value={(uploadProgress.current / uploadProgress.total) * 100}
                 className="h-2"
               />
             </div>
@@ -262,8 +286,8 @@ export function Library({ onSelectImages, onClose }: LibraryProps) {
             disabled={isUploading}
           />
           <label htmlFor="library-bulk-upload">
-            <Button 
-              className="w-full gap-2" 
+            <Button
+              className="w-full gap-2"
               disabled={isUploading}
               asChild
             >
@@ -295,7 +319,7 @@ export function Library({ onSelectImages, onClose }: LibraryProps) {
           <>
             <div className="mb-4 flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
-                {libraryImages.length} items in library • {selectedImages.size} selected
+                {filteredImages.length} items shown • {selectedImages.size} selected
               </p>
               {selectedImages.size > 0 && (
                 <Button onClick={handleUseSelected} className="gap-2" disabled={isDetecting}>
@@ -308,46 +332,103 @@ export function Library({ onSelectImages, onClose }: LibraryProps) {
               )}
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {libraryImages.map((image) => (
-                <div
-                  key={image.path}
-                  className={`relative group rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
-                    selectedImages.has(image.url)
+            {/* Filter Tabs */}
+            <div className="mb-4 flex gap-2">
+              <Button
+                variant={activeFilter === 'all' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setActiveFilter('all')}
+              >
+                All
+              </Button>
+              <Button
+                variant={activeFilter === 'top' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setActiveFilter('top')}
+                className="gap-1"
+              >
+                👕 Tops
+              </Button>
+              <Button
+                variant={activeFilter === 'bottom' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setActiveFilter('bottom')}
+                className="gap-1"
+              >
+                👖 Bottoms
+              </Button>
+            </div>
+
+            {/* Empty filter state */}
+            {filteredImages.length === 0 && libraryImages.length > 0 && (
+              <div className="text-center py-8 border border-dashed rounded-lg">
+                <p className="text-muted-foreground mb-2">
+                  No {activeFilter === 'top' ? 'tops' : 'bottoms'} found in your library.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Click "Add Images to Library" while this tab is selected to add {activeFilter === 'top' ? 'tops' : 'bottoms'}.
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => setActiveFilter('all')}
+                >
+                  View All Items ({libraryImages.length})
+                </Button>
+              </div>
+            )}
+
+            {/* Image Grid */}
+            {filteredImages.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {filteredImages.map((image) => (
+                  <div
+                    key={image.path}
+                    className={`relative group rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${selectedImages.has(image.url)
                       ? 'border-primary ring-2 ring-primary'
                       : 'border-transparent hover:border-gray-300'
-                  }`}
-                  onClick={() => handleToggleSelect(image.url)}
-                >
-                  <img
-                    src={image.url}
-                    alt={image.name}
-                    className="w-full h-48 object-cover"
-                  />
-                  
-                  {selectedImages.has(image.url) && (
-                    <div className="absolute top-2 right-2 bg-primary text-white rounded-full p-1">
-                      <Check className="h-4 w-4" />
-                    </div>
-                  )}
+                      }`}
+                    onClick={() => handleToggleSelect(image.url)}
+                  >
+                    <img
+                      src={image.url}
+                      alt={image.name}
+                      className="w-full h-48 object-cover"
+                    />
 
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="w-full gap-2"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteImage(image.path);
-                      }}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                      Delete
-                    </Button>
+                    {selectedImages.has(image.url) && (
+                      <div className="absolute top-2 right-2 bg-primary text-white rounded-full p-1">
+                        <Check className="h-4 w-4" />
+                      </div>
+                    )}
+
+                    {/* Show stored type badge (or guess from filename) */}
+                    <div className={`absolute bottom-0 left-0 px-2 py-1 text-xs rounded-tr capitalize ${image.clothingType
+                        ? (image.clothingType === 'top' ? 'bg-blue-600 text-white' : 'bg-amber-600 text-white')
+                        : 'bg-black/70 text-white'
+                      }`}>
+                      {image.clothingType || (guessTypeFromName(image.name) === 'unknown' ? '?' : guessTypeFromName(image.name))}
+                    </div>
+
+                    <div className="absolute bottom-0 right-0 left-0 bg-gradient-to-t from-black/80 to-transparent p-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="w-full gap-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteImage(image.path);
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Delete
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </>
         )}
 
