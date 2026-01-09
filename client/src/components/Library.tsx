@@ -318,9 +318,29 @@ export function Library({ onSelectImages, onClose, filterType }: LibraryProps) {
         ) : (
           <>
             <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                {filteredImages.length} items shown • {selectedImages.size} selected
-              </p>
+              <div className="flex items-center gap-3">
+                <p className="text-sm text-muted-foreground">
+                  {filteredImages.length} items shown • {selectedImages.size} selected
+                </p>
+                {filteredImages.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (selectedImages.size === filteredImages.length) {
+                        // Deselect all
+                        setSelectedImages(new Set());
+                      } else {
+                        // Select all filtered images
+                        setSelectedImages(new Set(filteredImages.map(img => img.url)));
+                      }
+                    }}
+                    className="text-xs"
+                  >
+                    {selectedImages.size === filteredImages.length ? 'Deselect All' : 'Select All'}
+                  </Button>
+                )}
+              </div>
               {selectedImages.size > 0 && (
                 <Button onClick={handleUseSelected} className="gap-2" disabled={isDetecting}>
                   {isDetecting ? (
@@ -405,8 +425,8 @@ export function Library({ onSelectImages, onClose, filterType }: LibraryProps) {
 
                     {/* Show stored type badge (or guess from filename) */}
                     <div className={`absolute bottom-0 left-0 px-2 py-1 text-xs rounded-tr capitalize ${image.clothingType
-                        ? (image.clothingType === 'top' ? 'bg-blue-600 text-white' : 'bg-amber-600 text-white')
-                        : 'bg-black/70 text-white'
+                      ? (image.clothingType === 'top' ? 'bg-blue-600 text-white' : 'bg-amber-600 text-white')
+                      : 'bg-black/70 text-white'
                       }`}>
                       {image.clothingType || (guessTypeFromName(image.name) === 'unknown' ? '?' : guessTypeFromName(image.name))}
                     </div>

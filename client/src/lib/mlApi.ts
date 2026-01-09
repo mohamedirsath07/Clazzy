@@ -747,38 +747,238 @@ export async function getAIRecommendations(
     };
   }
 
+  console.log(`🎨 Generating smart outfits: ${tops.length} tops × ${bottoms.length} bottoms for ${occasion}`);
+
   // ═══════════════════════════════════════════════════════════════════════════════
-  // FRONTEND-BASED OUTFIT GENERATION (uses actual image URLs)
+  // STEP 1: Extract dominant colors from all images
   // ═══════════════════════════════════════════════════════════════════════════════
 
-  console.log(`🎨 Generating outfits: ${tops.length} tops × ${bottoms.length} bottoms`);
+  const extractColor = async (imageUrl: string): Promise<string> => {
+    try {
+      return await extractDominantColor(imageUrl);
+    } catch {
+      return '#808080';
+    }
+  };
+
+  // Extract colors for all items in parallel
+  const topColors = await Promise.all(tops.map(t => extractColor(t.imageUrl)));
+  const bottomColors = await Promise.all(bottoms.map(b => extractColor(b.imageUrl)));
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // STEP 2: Color harmony scoring functions
+  // ═══════════════════════════════════════════════════════════════════════════════
+
+  const hexToHSL = (hex: string): { h: number; s: number; l: number } => {
+    const r = parseInt(hex.slice(1, 3), 16) / 255;
+    const g = parseInt(hex.slice(3, 5), 16) / 255;
+    const b = parseInt(hex.slice(5, 7), 16) / 255;
+
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+
+    let h = 0, s = 0;
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r: h = ((g - b) / d + (g < b ? 6 : 0)) * 60; break;
+        case g: h = ((b - r) / d + 2) * 60; break;
+        case b: h = ((r - g) / d + 4) * 60; break;
+      }
+    }
+    return { h, s, l };
+  };
+
+  const calculateColorHarmony = (color1: string, color2: string): number => {
+    const hsl1 = hexToHSL(color1);
+    const hsl2 = hexToHSL(color2);
+
+    const hueDiff = Math.abs(hsl1.h - hsl2.h);
+    const normalizedHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
+
+    // Scoring based on color theory
+    let harmonyScore = 0.5; // Base score
+
+    // Complementary colors (opposite on wheel, ~180°) - very harmonious
+    if (normalizedHueDiff >= 150 && normalizedHueDiff <= 210) {
+      harmonyScore = 0.95;
+    }
+    // Analogous colors (adjacent, 0-30°) - harmonious
+    else if (normalizedHueDiff <= 30) {
+      harmonyScore = 0.85;
+    }
+    // Triadic colors (~120°) - balanced
+    else if (normalizedHueDiff >= 100 && normalizedHueDiff <= 140) {
+      harmonyScore = 0.80;
+    }
+    // Split-complementary (~150°) - good
+    else if (normalizedHueDiff >= 140 && normalizedHueDiff <= 170) {
+      harmonyScore = 0.75;
+    }
+    // Neutral pairing (one is low saturation)
+    else if (hsl1.s < 0.2 || hsl2.s < 0.2) {
+      harmonyScore = 0.82; // Neutrals go with everything
+    }
+    // Monochromatic (similar hue, different lightness)
+    else if (normalizedHueDiff <= 15 && Math.abs(hsl1.l - hsl2.l) > 0.2) {
+      harmonyScore = 0.88;
+    }
+
+    return harmonyScore;
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // STEP 3: Occasion-based adjustments
+  // ═══════════════════════════════════════════════════════════════════════════════
+
+  const getOccasionModifier = (topColor: string, bottomColor: string, occasion: string): number => {
+    const topHSL = hexToHSL(topColor);
+    const bottomHSL = hexToHSL(bottomColor);
+    const avgLightness = (topHSL.l + bottomHSL.l) / 2;
+    const avgSaturation = (topHSL.s + bottomHSL.s) / 2;
+
+    switch (occasion.toLowerCase()) {
+      case 'formal':
+      case 'business':
+        // Formal/Business wear - STRICT filtering:
+        // - T-shirts (dark/black, low saturation) = EXCLUDE completely
+        // - Dress shirts (saturated, colored) = REQUIRED
+        // - Dress pants (dark) = REQUIRED
+        // - Jeans = EXCLUDE completely
+
+        // EXCLUDE: Very dark/black tops (t-shirts) - near-zero score
+        if (topHSL.l < 0.2) {
+          return 0.15; // EXCLUDE: black t-shirts not for formal
+        }
+
+        // EXCLUDE: Dark grey plain tops (casual t-shirt look)
+        if (topHSL.l < 0.35 && topHSL.s < 0.15) {
+          return 0.15; // EXCLUDE: grey t-shirts not for formal
+        }
+
+        // EXCLUDE: Blue jeans (saturated blue bottoms)
+        if (bottomHSL.h >= 190 && bottomHSL.h <= 250 && bottomHSL.s > 0.3 && bottomHSL.l > 0.3) {
+          return 0.15; // EXCLUDE: jeans not for formal
+        }
+
+        // EXCLUDE: Light/khaki casual pants
+        if (bottomHSL.l > 0.5 && bottomHSL.s < 0.3) {
+          return 0.25; // Low score: casual pants not ideal for formal
+        }
+
+        // BOOST: Colored dress shirts + dark dress pants (BEST for formal)
+        if (topHSL.s > 0.3 && topHSL.l > 0.25 && topHSL.l < 0.7 && bottomHSL.l < 0.3) {
+          return 1.30; // Best: colored dress shirt + dark pants
+        }
+
+        // BOOST: White/light dress shirts + dark pants
+        if (topHSL.l > 0.55 && bottomHSL.l < 0.35) {
+          return 1.25; // Great: white shirt + dark pants
+        }
+
+        // BOOST: Colored dress shirts (even without dark pants)
+        if (topHSL.s > 0.3 && topHSL.l > 0.25 && topHSL.l < 0.7) {
+          return 1.15; // Good: colored dress shirt
+        }
+
+        return 0.80; // Default lower for formal (strict filtering)
+
+      case 'party':
+        // Bright, saturated colors preferred
+        if (avgSaturation > 0.6) return 1.15;
+        if (avgSaturation < 0.3) return 0.90;
+        return 1.0;
+
+      case 'date':
+        // Balanced, warm colors preferred
+        const isWarm = (topHSL.h >= 0 && topHSL.h <= 60) || topHSL.h >= 300;
+        if (isWarm && avgSaturation > 0.3) return 1.10;
+        return 1.0;
+
+      case 'casual':
+        // Everything works, slight preference for balanced
+        return 1.0 + (avgSaturation * 0.1);
+
+      case 'sports':
+        // Sports wear logic:
+        // - T-shirts (dark, low saturation tops) = GOOD
+        // - Dress shirts (saturated, mid-lightness tops) = BAD
+        // - Trackpants (dark, low saturation bottoms) = GOOD
+        // - Jeans (saturated blue bottoms) = BAD
+        // - Formal pants (very dark) = BAD
+
+        // EXCLUDE dress shirts (saturated, colored tops)
+        if (topHSL.s > 0.35 && topHSL.l > 0.25 && topHSL.l < 0.65) {
+          return 0.15; // Near-zero: dress shirts not for sports
+        }
+
+        // EXCLUDE jeans (saturated blue bottoms)
+        if (bottomHSL.h >= 190 && bottomHSL.h <= 250 && bottomHSL.s > 0.3 && bottomHSL.l > 0.3) {
+          return 0.15; // Near-zero: jeans not for sports
+        }
+
+        // EXCLUDE formal dark pants (very dark, low saturation - dress pants)
+        if (bottomHSL.l < 0.15 && bottomHSL.s < 0.2) {
+          return 0.20; // Low score: formal pants not ideal for sports
+        }
+
+        // BOOST: T-shirts (darker or low saturation tops) with casual bottoms
+        if ((topHSL.l < 0.4 || topHSL.s < 0.25) && bottomHSL.l > 0.15 && bottomHSL.l < 0.5) {
+          return 1.25; // Great: t-shirt + trackpants style
+        }
+
+        // Good: bright/energetic colors for sports
+        if (avgSaturation > 0.4 && avgLightness > 0.35) {
+          return 1.10;
+        }
+
+        return 0.85; // Default lower for sports (strict filtering)
+
+      default:
+        return 1.0;
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // STEP 4: Generate and score all outfit combinations
+  // ═══════════════════════════════════════════════════════════════════════════════
 
   const outfits: MLOutfitRecommendation[] = [];
 
-  // Generate Cartesian product of tops × bottoms
-  for (const top of tops) {
-    for (const bottom of bottoms) {
-      // Calculate aesthetic score (simple random for now, will add color analysis later)
-      const aestheticScore = 0.75 + Math.random() * 0.2; // 75-95%
+  for (let i = 0; i < tops.length; i++) {
+    for (let j = 0; j < bottoms.length; j++) {
+      const topColor = topColors[i];
+      const bottomColor = bottomColors[j];
+
+      // Calculate base harmony score
+      const harmonyScore = calculateColorHarmony(topColor, bottomColor);
+
+      // Apply occasion modifier
+      const occasionModifier = getOccasionModifier(topColor, bottomColor, occasion);
+
+      // Final score (capped at 0.99)
+      const finalScore = Math.min(0.99, harmonyScore * occasionModifier);
 
       const outfit: MLOutfitRecommendation = {
         top: {
-          filename: top.id,
+          filename: tops[i].id,
           type: 'top',
           category: 'top',
-          color: '#808080',
-          url: top.imageUrl, // USE ACTUAL IMAGE URL
+          color: topColor,
+          url: tops[i].imageUrl,
           role: 'top',
         },
         bottom: {
-          filename: bottom.id,
+          filename: bottoms[j].id,
           type: 'bottom',
           category: 'bottom',
-          color: '#808080',
-          url: bottom.imageUrl, // USE ACTUAL IMAGE URL
+          color: bottomColor,
+          url: bottoms[j].imageUrl,
           role: 'bottom',
         },
-        score: aestheticScore,
+        score: finalScore,
         items: [],
         total_items: 2,
       };
@@ -793,7 +993,8 @@ export async function getAIRecommendations(
     .sort((a, b) => b.score - a.score)
     .slice(0, 9);
 
-  console.log(`✅ Generated ${sortedOutfits.length} outfit combinations`);
+  console.log(`✅ Generated ${sortedOutfits.length} smart outfit combinations for ${occasion}`);
+  console.log(`   Best match: ${Math.round(sortedOutfits[0]?.score * 100 || 0)}%`);
 
   return {
     occasion,

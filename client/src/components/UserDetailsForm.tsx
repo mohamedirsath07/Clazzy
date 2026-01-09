@@ -30,7 +30,7 @@ export function UserDetailsForm({ onSubmit, defaultValues }: UserDetailsFormProp
 
   // Auto-submit when form values change
   const watchedValues = form.watch();
-  
+
   // Submit form when all required fields are filled
   useEffect(() => {
     const { name, age, gender } = watchedValues;

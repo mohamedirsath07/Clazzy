@@ -1,9 +1,9 @@
 /**
- * MLOutfitCard V2 - WITH HISTORY SAVE FEATURE
+ * MLOutfitCard V3 - WITH GSAP ANIMATIONS & HISTORY SAVE
  * =============================================================================
  */
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,29 +11,12 @@ import { Sparkles, History, Check } from "lucide-react";
 import type { MLOutfitRecommendation } from "@/lib/mlApi";
 import { formatMatchScore, getScoreColor } from "@/lib/mlApi";
 import { saveOutfitToHistory } from "@/lib/outfitHistory";
+import gsap from "gsap";
 
 interface MLOutfitCardProps {
   outfit: MLOutfitRecommendation;
   occasion: string;
   index: number;
-}
-
-/**
- * Color Badge - Shows hex color with visual swatch and ROLE label
- */
-function ColorBadge({ color, role }: { color: string; role: 'top' | 'bottom' }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <div
-        className="h-3 w-3 rounded-full border border-gray-300"
-        style={{ backgroundColor: color }}
-        title={`Color: ${color}`}
-      />
-      <span className="text-xs capitalize font-medium text-muted-foreground">
-        {role}
-      </span>
-    </div>
-  );
 }
 
 /**
@@ -43,9 +26,34 @@ export function MLOutfitCard({ outfit, occasion, index }: MLOutfitCardProps) {
   const { top, bottom } = outfit;
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const scorePercentage = formatMatchScore(outfit.score);
   const scoreColorClass = getScoreColor(outfit.score);
+
+  // GSAP entrance animation
+  useEffect(() => {
+    if (cardRef.current) {
+      gsap.fromTo(
+        cardRef.current,
+        {
+          opacity: 0,
+          y: 60,
+          scale: 0.9,
+          rotateX: -10
+        },
+        {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          rotateX: 0,
+          duration: 0.7,
+          delay: index * 0.15, // Stagger based on index
+          ease: "power3.out"
+        }
+      );
+    }
+  }, [index]);
 
   const handleSaveToHistory = async () => {
     if (isSaved || isSaving) return;
@@ -59,6 +67,17 @@ export function MLOutfitCard({ outfit, occasion, index }: MLOutfitCardProps) {
         score: outfit.score
       });
       setIsSaved(true);
+
+      // Celebrate animation when saved
+      if (cardRef.current) {
+        gsap.to(cardRef.current, {
+          scale: 1.05,
+          duration: 0.2,
+          yoyo: true,
+          repeat: 1,
+          ease: "power2.out"
+        });
+      }
     } catch (error) {
       console.error('Failed to save outfit:', error);
     } finally {
@@ -67,8 +86,11 @@ export function MLOutfitCard({ outfit, occasion, index }: MLOutfitCardProps) {
   };
 
   return (
-    <Card className="overflow-hidden transition-all hover:shadow-lg" data-testid={`ml-outfit-card-${index}`}>
-      <CardContent className="p-0">
+    <Card
+      ref={cardRef}
+      className="overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-purple-500/20 hover:-translate-y-2 opacity-0 cursor-pointer group"
+      data-testid={`ml-outfit-card-${index}`}
+    >      <CardContent className="p-0">
         {/* Outfit Images Grid - top first, bottom second */}
         <div className="grid grid-cols-2 gap-1 bg-muted/30 p-2">
           {/* TOP IMAGE */}
@@ -122,16 +144,6 @@ export function MLOutfitCard({ outfit, occasion, index }: MLOutfitCardProps) {
               {occasion}
             </Badge>
           </div>
-
-          {/* Color Badges */}
-          <div className="mb-3">
-            <div className="flex flex-wrap gap-3">
-              <ColorBadge color={top.color} role="top" />
-              <span className="text-muted-foreground">+</span>
-              <ColorBadge color={bottom.color} role="bottom" />
-            </div>
-          </div>
-
           {/* Ready to wear + Save Button */}
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
