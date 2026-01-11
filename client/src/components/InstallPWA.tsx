@@ -49,7 +49,7 @@ export function InstallPWA() {
 
     // Wait for user choice
     const { outcome } = await installPrompt.userChoice;
-    
+
     if (outcome === 'accepted') {
       console.log('User accepted the install prompt');
     } else {
@@ -92,9 +92,9 @@ export function InstallPWA() {
         <AlertDescription>
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1">
-              <p className="font-semibold text-sm mb-1">Install StyleAI App</p>
+              <p className="font-semibold text-sm mb-1">Install Clazzy App</p>
               <p className="text-xs text-muted-foreground mb-3">
-                Add to your home screen for quick access and offline use!
+                Add to your home screen for quick access and the best experience!
               </p>
               <div className="flex gap-2">
                 <Button

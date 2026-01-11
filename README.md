@@ -10,6 +10,20 @@ Your intelligent fashion companion that provides AI-powered outfit recommendatio
 
 ## ✨ Features
 
+### 📱 Install as Mobile App (PWA)
+Clazzy can be installed on your phone like a native app - no app store needed!
+
+**Android (Chrome/Edge):**
+1. Open Clazzy in Chrome on your Android device
+2. Tap the "Install App" banner OR tap the menu (⋮) → "Add to Home screen"
+3. The app icon will appear on your home screen
+
+**iPhone/iPad (Safari):**
+1. Open Clazzy in Safari on your iOS device
+2. Tap the Share button (📤)
+3. Scroll down and tap "Add to Home Screen"
+4. Tap "Add" to confirm
+
 ### 🎨 Smart Outfit Recommendations
 - **Color Harmony Analysis**: Uses color theory principles to score outfit combinations
   - Complementary colors (opposite on color wheel): 95% base score

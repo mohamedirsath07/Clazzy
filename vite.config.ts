@@ -12,11 +12,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'StyleAI - Fashion Outfit Recommender',
-        short_name: 'StyleAI',
+        name: 'Clazzy - Your Intelligent Fashion Companion',
+        short_name: 'Clazzy',
         description: 'AI-powered outfit recommendations for your wardrobe',
-        theme_color: '#8B5CF6',
-        background_color: '#ffffff',
+        theme_color: '#7C3AED',
+        background_color: '#0f0a1e',
         display: 'standalone',
         orientation: 'portrait',
         scope: '/',
@@ -67,15 +67,15 @@ export default defineConfig({
       }
     }),
     ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
+      process.env.REPL_ID !== undefined
       ? [
-          await import("@replit/vite-plugin-cartographer").then((m) =>
-            m.cartographer(),
-          ),
-          await import("@replit/vite-plugin-dev-banner").then((m) =>
-            m.devBanner(),
-          ),
-        ]
+        await import("@replit/vite-plugin-cartographer").then((m) =>
+          m.cartographer(),
+        ),
+        await import("@replit/vite-plugin-dev-banner").then((m) =>
+          m.devBanner(),
+        ),
+      ]
       : []),
   ],
   resolve: {
