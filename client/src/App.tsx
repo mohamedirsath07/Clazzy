@@ -4,7 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import { InstallPWA } from "@/components/InstallPWA";
+import { InstallPrompt } from "@/components/InstallPWA";
 import Home from "@/pages/Home";
 import NotFound from "@/pages/not-found";
 
@@ -23,7 +23,7 @@ function App() {
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
           <Toaster />
-          <InstallPWA />
+          <InstallPrompt />
           <Router />
         </TooltipProvider>
       </ThemeProvider>

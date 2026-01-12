@@ -6,14 +6,31 @@
     <title>Clazzy - Your Intelligent Fashion Companion</title>
     <meta name="description" content="Get AI-powered outfit recommendations, perfect color combinations, and complete wardrobe styling for any occasion with Clazzy." />
     
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#7C3AED" />
     <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="Clazzy" />
+    
+    <!-- Apple/iOS Meta Tags -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Clazzy" />
-    <link rel="apple-touch-icon" href="/Clazzy_Logo.jpg" />
+    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/pwa-192x192.png" />
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/pwa-64x64.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/pwa-64x64.png" />
     <link rel="icon" type="image/jpeg" href="/Clazzy_Logo.jpg" />
+    
+    <!-- MS Tile -->
+    <meta name="msapplication-TileColor" content="#7C3AED" />
+    <meta name="msapplication-TileImage" content="/pwa-192x192.png" />
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,5 +39,33 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', async () => {
+          try {
+            const registration = await navigator.serviceWorker.register('/sw.js', {
+              scope: '/'
+            });
+            console.log('[App] Service Worker registered:', registration.scope);
+            
+            // Check for updates
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing;
+              if (newWorker) {
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    console.log('[App] New content available, refresh to update.');
+                  }
+                });
+              }
+            });
+          } catch (error) {
+            console.error('[App] Service Worker registration failed:', error);
+          }
+        });
+      }
+    </script>
   </body>
 </html>

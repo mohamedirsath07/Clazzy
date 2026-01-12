@@ -1,0 +1,46 @@
+{
+  "name": "Clazzy - Your Intelligent Fashion Companion",
+  "short_name": "Clazzy",
+  "description": "Get AI-powered outfit recommendations, perfect color combinations, and complete wardrobe styling for any occasion with Clazzy.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#7C3AED",
+  "background_color": "#0f0a1e",
+  "categories": ["lifestyle", "shopping", "utilities"],
+  "icons": [
+    {
+      "src": "/pwa-64x64.png",
+      "sizes": "64x64",
+      "type": "image/png"
+    },
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/maskable-icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Get Outfit Suggestion",
+      "short_name": "Suggest",
+      "description": "Get AI-powered outfit recommendations",
+      "url": "/",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+    }
+  ]
+}
