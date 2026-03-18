@@ -68,7 +68,7 @@ export interface MLOutfitRecommendation {
 }
 
 export type RecommendationStatus = 'ok' | 'error';
-export type RecommendationErrorReason =
+export type RecommendationErrorReason = 
   | 'MISSING_TOP_OR_BOTTOM'
   | 'ALL_ITEMS_UNKNOWN'
   | 'LOW_CONFIDENCE'
@@ -117,15 +117,15 @@ const TYPE_ALIASES: Record<string, 'top' | 'bottom' | 'unknown'> = {
 function normalizeType(rawType: string | undefined): 'top' | 'bottom' | 'unknown' {
   if (!rawType) return 'unknown';
   const cleaned = rawType.trim().toLowerCase().replace(/-/g, '').replace(/_/g, '');
-
+  
   // Direct lookup
   if (TYPE_ALIASES[cleaned]) return TYPE_ALIASES[cleaned];
-
+  
   // Partial match
   for (const [alias, type] of Object.entries(TYPE_ALIASES)) {
     if (cleaned.includes(alias)) return type;
   }
-
+  
   return 'unknown';
 }
 
@@ -135,7 +135,7 @@ function normalizeType(rawType: string | undefined): 'top' | 'bottom' | 'unknown
 
 function guessTypeFromFilename(filename: string): 'top' | 'bottom' | null {
   const lower = filename.toLowerCase();
-
+  
   const topPatterns = ['shirt', 'tee', 'blouse', 'top', 'polo', 'sweater', 'hoodie', 'jacket', 'blazer', 'coat'];
   for (const p of topPatterns) {
     if (lower.includes(p)) {
@@ -143,7 +143,7 @@ function guessTypeFromFilename(filename: string): 'top' | 'bottom' | null {
       return 'top';
     }
   }
-
+  
   const bottomPatterns = ['pant', 'jean', 'trouser', 'short', 'skirt', 'bottom', 'cargo', 'chino', 'legging'];
   for (const p of bottomPatterns) {
     if (lower.includes(p)) {
@@ -151,13 +151,13 @@ function guessTypeFromFilename(filename: string): 'top' | 'bottom' | null {
       return 'bottom';
     }
   }
-
+  
   return null;
 }
 
 function guessTypeFromAspectRatio(width: number, height: number): 'top' | 'bottom' | null {
   if (width <= 0 || height <= 0) return null;
-
+  
   const ratio = width / height;
   if (ratio < 0.7) {
     console.log(`   📐 Aspect ratio ${ratio.toFixed(2)} (tall) → BOTTOM`);
@@ -188,11 +188,11 @@ async function determineVisualType(imageUrl: string): Promise<'top' | 'bottom' |
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'Anonymous';
-
+    
     img.onload = () => {
       const { width, height } = img;
       const aspectRatio = height / width;
-
+      
       if (aspectRatio < 1.2) {
         console.log(`   👁️ VISUAL CHECK: ${width}x${height} (h/w=${aspectRatio.toFixed(2)}) → TOP (wide shape)`);
         resolve('top');
@@ -201,15 +201,15 @@ async function determineVisualType(imageUrl: string): Promise<'top' | 'bottom' |
         resolve('bottom');
       }
     };
-
+    
     img.onerror = () => {
       console.warn(`   ⚠️ VISUAL CHECK failed to load image`);
       resolve('unknown');
     };
-
+    
     // Timeout after 3 seconds
     setTimeout(() => resolve('unknown'), 3000);
-
+    
     img.src = imageUrl;
   });
 }
@@ -231,12 +231,12 @@ function determineFinalType(
     console.warn(`   ⚠️ CONSENSUS: Visual unknown, trusting model: ${modelType}`);
     return modelType === 'unknown' ? 'top' : modelType; // Default to top if both unknown
   }
-
+  
   if (modelType === visualType) {
     console.log(`   ✅ CONSENSUS: Model and visual AGREE: ${modelType}`);
     return modelType;
   }
-
+  
   // DISAGREEMENT - VISUAL WINS
   console.warn(`   🔄 CONSENSUS OVERRIDE: Model said '${modelType}' but visual says '${visualType}'`);
   console.warn(`   🔄 TRUSTING VISUAL REALITY over ML (confidence was ${(confidence * 100).toFixed(0)}%)`);
@@ -289,16 +289,16 @@ async function resolveGarmentType(
 ): Promise<'top' | 'bottom'> {
   const signals: Signal[] = [];
   const confidence = item.confidence ?? 0.5;
-
+  
   console.log(`   🧠 RESOLVE_GARMENT_TYPE: ${item.id}`);
-
+  
   // Get dimensions if not provided
   if (width === 0 || height === 0) {
     const dims = await getImageDimensions(item.imageUrl);
     width = dims.width;
     height = dims.height;
   }
-
+  
   // ═══════════════════════════════════════════════════════════════════
   // SIGNAL 1: VISUAL SHAPE (PRIMARY - weight 3.0)
   // Pants are ALWAYS taller than wide. Shirts are ALWAYS wider than tall.
@@ -319,7 +319,7 @@ async function resolveGarmentType(
       console.log(`      📐 SIGNAL 1 (VISUAL): h/w=${aspectRatio.toFixed(2)} in [1.0, 1.2] → TOP (weight 1.5)`);
     }
   }
-
+  
   // ═══════════════════════════════════════════════════════════════════
   // SIGNAL 2: STRUCTURAL FEATURES (weight 2.5)
   // Sleeves, collars, buttons → FORCE TOP (pants NEVER have these)
@@ -329,7 +329,7 @@ async function resolveGarmentType(
     signals.push({ type: structureType, weight: 2.5, source: 'STRUCTURE' });
     console.log(`      🔍 SIGNAL 2 (STRUCTURE): ${structureType} (weight 2.5)`);
   }
-
+  
   // ═══════════════════════════════════════════════════════════════════
   // SIGNAL 3: FILENAME HEURISTICS (weight 2.0)
   // ═══════════════════════════════════════════════════════════════════
@@ -342,7 +342,7 @@ async function resolveGarmentType(
     signals.push({ type: filenameType, weight: 2.0, source: 'FILENAME' });
     console.log(`      📁 SIGNAL 3 (FILENAME): ${filenameType} (weight 2.0)`);
   }
-
+  
   // ═══════════════════════════════════════════════════════════════════
   // SIGNAL 4: ML OUTPUT (WEAKEST - weight 1.0)
   // ═══════════════════════════════════════════════════════════════════
@@ -352,7 +352,7 @@ async function resolveGarmentType(
     signals.push({ type: mlType, weight: mlWeight, source: 'ML' });
     console.log(`      🤖 SIGNAL 4 (ML): ${mlType} (weight ${mlWeight.toFixed(2)}, conf=${(confidence * 100).toFixed(0)}%)`);
   }
-
+  
   // ═══════════════════════════════════════════════════════════════════
   // FINAL DECISION: Weighted Majority Vote
   // ═══════════════════════════════════════════════════════════════════
@@ -360,12 +360,12 @@ async function resolveGarmentType(
     console.warn(`      ⚠️ NO SIGNALS - defaulting to TOP`);
     return 'top';
   }
-
+  
   const topWeight = signals.filter(s => s.type === 'top').reduce((sum, s) => sum + s.weight, 0);
   const bottomWeight = signals.filter(s => s.type === 'bottom').reduce((sum, s) => sum + s.weight, 0);
-
+  
   console.log(`      📊 VOTE: TOP=${topWeight.toFixed(1)} vs BOTTOM=${bottomWeight.toFixed(1)}`);
-
+  
   let finalType: 'top' | 'bottom';
   if (bottomWeight > topWeight) {
     finalType = 'bottom';
@@ -381,7 +381,7 @@ async function resolveGarmentType(
       console.log(`      🔀 TIE: Defaulting to TOP`);
     }
   }
-
+  
   console.log(`      ✅ FINAL DECISION: ${finalType.toUpperCase()}`);
   return finalType;
 }
@@ -392,31 +392,31 @@ async function resolveGarmentType(
  */
 function detectStructuralFeatures(name: string, imageUrl: string): 'top' | 'bottom' | null {
   const text = `${name} ${imageUrl}`.toLowerCase();
-
+  
   // Features that ONLY tops have
   const topFeatures = [
     'sleeve', 'collar', 'button', 'neck', 'v-neck', 'crew',
     'polo', 'hoodie', 'hood', 'zip', 'zipper', 'pocket',
     'long-sleeve', 'short-sleeve', 'sleeveless'
   ];
-
+  
   for (const feature of topFeatures) {
     if (text.includes(feature)) {
       console.log(`         🔍 Structural feature: '${feature}' → TOP`);
       return 'top';
     }
   }
-
+  
   // Features that ONLY bottoms have
   const bottomFeatures = ['waist', 'belt-loop', 'beltloop', 'inseam', 'cuff', 'leg'];
-
+  
   for (const feature of bottomFeatures) {
     if (text.includes(feature)) {
       console.log(`         🔍 Structural feature: '${feature}' → BOTTOM`);
       return 'bottom';
     }
   }
-
+  
   return null;
 }
 
@@ -426,11 +426,11 @@ function detectStructuralFeatures(name: string, imageUrl: string): 'top' | 'bott
  */
 function calculatePantLikenessScore(item: NormalizedItemWithVisual): number {
   let score = 0.0;
-
+  
   const { imageWidth = 0, imageHeight = 0, id, imageUrl } = item;
   const name = id.toLowerCase();
   const url = imageUrl.toLowerCase();
-
+  
   // Aspect ratio is the strongest signal
   if (imageWidth > 0 && imageHeight > 0) {
     const aspectRatio = imageHeight / imageWidth;
@@ -438,7 +438,7 @@ function calculatePantLikenessScore(item: NormalizedItemWithVisual): number {
     else if (aspectRatio > 1.3) score += 0.3;
     else if (aspectRatio > 1.1) score += 0.1;
   }
-
+  
   // Filename hints
   const bottomKeywords = ['pant', 'jean', 'trouser', 'short', 'skirt', 'bottom', 'cargo', 'chino'];
   for (const kw of bottomKeywords) {
@@ -447,12 +447,12 @@ function calculatePantLikenessScore(item: NormalizedItemWithVisual): number {
       break;
     }
   }
-
+  
   // No top keywords (negative signal)
   const topKeywords = ['shirt', 'tee', 'blouse', 'top', 'polo', 'sweater', 'hoodie', 'jacket'];
   const hasTopKeyword = topKeywords.some(kw => name.includes(kw) || url.includes(kw));
   if (!hasTopKeyword) score += 0.1;
-
+  
   return Math.min(1.0, score);
 }
 
@@ -506,39 +506,39 @@ interface NormalizedItemWithVisual extends NormalizedItem {
 async function hardSplitWardrobe(items: RawItem[]): Promise<{ tops: NormalizedItemWithVisual[], bottoms: NormalizedItemWithVisual[] }> {
   const tops: NormalizedItemWithVisual[] = [];
   const bottoms: NormalizedItemWithVisual[] = [];
-
+  
   console.log('═══════════════════════════════════════════════════════════════════');
   console.log('🔪 HARD SPLIT WARDROBE (MULTI-SIGNAL RESOLVER)');
   console.log('═══════════════════════════════════════════════════════════════════');
   console.log(`   Input: ${items.length} items`);
-
+  
   for (const item of items) {
     const confidence = item.confidence ?? 0.5;
-
+    
     console.log(`\n   [${item.id}] Raw ML: "${item.detectedType}", Confidence: ${(confidence * 100).toFixed(0)}%`);
-
+    
     // Get image dimensions first
     const dimensions = await getImageDimensions(item.imageUrl);
     console.log(`       Dimensions: ${dimensions.width}x${dimensions.height}`);
-
+    
     // ═══════════════════════════════════════════════════════════════════
     // USE MULTI-SIGNAL RESOLVER (NOT just ML)
     // ═══════════════════════════════════════════════════════════════════
     const finalType = await resolveGarmentType(item, dimensions.width, dimensions.height);
-
+    
     // Get visual type for reference
     const visualType = await determineVisualType(item.imageUrl);
-
+    
     // Create normalized item with FINAL type
-    const normalizedItem: NormalizedItemWithVisual = {
-      ...item,
+    const normalizedItem: NormalizedItemWithVisual = { 
+      ...item, 
       normalizedType: finalType,
       visualType,
       verifiedType: finalType,
       imageWidth: dimensions.width,
       imageHeight: dimensions.height
     };
-
+    
     // Add based on FINAL type (never unknown)
     if (finalType === 'bottom') {
       bottoms.push(normalizedItem);
@@ -548,7 +548,7 @@ async function hardSplitWardrobe(items: RawItem[]): Promise<{ tops: NormalizedIt
       console.log(`       ✅ Added to TOPS (now ${tops.length})`);
     }
   }
-
+  
   // ═══════════════════════════════════════════════════════════════════════════
   // FAIL-SAFE RECOVERY: If 0 bottoms but have 2+ tops, force most pant-like as bottom
   // ═══════════════════════════════════════════════════════════════════════════
@@ -557,7 +557,7 @@ async function hardSplitWardrobe(items: RawItem[]): Promise<{ tops: NormalizedIt
     console.warn('🚨 FAIL-SAFE RECOVERY: 0 bottoms detected but have 2+ tops');
     console.warn('   Searching for most pant-like item to force as bottom...');
     console.warn('!'.repeat(70));
-
+    
     // Calculate pant-likeness score for each item in tops
     const topScores: Array<{ item: NormalizedItemWithVisual; score: number }> = [];
     for (const t of tops) {
@@ -565,10 +565,10 @@ async function hardSplitWardrobe(items: RawItem[]): Promise<{ tops: NormalizedIt
       topScores.push({ item: t, score });
       console.log(`   📊 ${t.id}: pant_likeness = ${score.toFixed(2)}`);
     }
-
+    
     // Sort by pant-likeness (highest first)
     topScores.sort((a, b) => b.score - a.score);
-
+    
     // Force the most pant-like item as bottom
     if (topScores.length > 0 && topScores[0].score > 0.1) {
       const forcedBottom = topScores[0].item;
@@ -576,12 +576,12 @@ async function hardSplitWardrobe(items: RawItem[]): Promise<{ tops: NormalizedIt
       if (topsIndex > -1) {
         tops.splice(topsIndex, 1);
       }
-
+      
       // Update the item's types
       forcedBottom.normalizedType = 'bottom';
       forcedBottom.verifiedType = 'bottom';
       bottoms.push(forcedBottom);
-
+      
       console.warn(`   🔄 FORCED '${forcedBottom.id}' as BOTTOM (score=${topScores[0].score.toFixed(2)})`);
     } else if (tops.length >= 2) {
       // No good candidate - force the first item anyway
@@ -592,19 +592,19 @@ async function hardSplitWardrobe(items: RawItem[]): Promise<{ tops: NormalizedIt
       console.warn(`   🔄 EMERGENCY FORCE: '${forcedBottom.id}' as BOTTOM (fallback)`);
     }
   }
-
+  
   console.log('\n' + '═'.repeat(70));
   console.log('📊 HARD SPLIT COMPLETE (MULTI-SIGNAL + FAIL-SAFE)');
   console.log(`   ✅ Tops: ${tops.length}`);
   console.log(`   ✅ Bottoms: ${bottoms.length}`);
   console.log(`   ⚠️ Unknown: 0 (impossible by design)`);
   console.log('═'.repeat(70));
-
+  
   return { tops, bottoms };
 }
 
 // Helper to get image dimensions
-function getImageDimensions(imageUrl: string): Promise<{ width: number, height: number }> {
+function getImageDimensions(imageUrl: string): Promise<{width: number, height: number}> {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => resolve({ width: img.width, height: img.height });
@@ -624,36 +624,36 @@ function validateOutfit(outfit: MLOutfitRecommendation): boolean {
     console.error('❌ VALIDATOR: Missing top or bottom slot');
     return false;
   }
-
+  
   if (outfit.top.role !== 'top') {
     console.error(`❌ VALIDATOR: Top has wrong role: ${outfit.top.role}`);
     return false;
   }
-
+  
   if (outfit.bottom.role !== 'bottom') {
     console.error(`❌ VALIDATOR: Bottom has wrong role: ${outfit.bottom.role}`);
     return false;
   }
-
+  
   if (outfit.top.filename === outfit.bottom.filename) {
     console.error('❌ VALIDATOR: Same item used for both roles');
     return false;
   }
-
+  
   // VISUAL REALITY CHECK: Block if visual types are wrong
   const topVisual = outfit.top.visualType;
   const bottomVisual = outfit.bottom.visualType;
-
+  
   if (topVisual === 'bottom') {
     console.error(`❌ VALIDATOR: Top item VISUALLY looks like a BOTTOM (${outfit.top.filename})`);
     return false;
   }
-
+  
   if (bottomVisual === 'top') {
     console.error(`❌ VALIDATOR: Bottom item VISUALLY looks like a TOP (${outfit.bottom.filename})`);
     return false;
   }
-
+  
   // Check dimensions if available - extra safety
   if (outfit.top.imageWidth && outfit.top.imageHeight) {
     if (isVisuallyABottom(outfit.top.imageWidth, outfit.top.imageHeight)) {
@@ -661,14 +661,14 @@ function validateOutfit(outfit: MLOutfitRecommendation): boolean {
       return false;
     }
   }
-
+  
   if (outfit.bottom.imageWidth && outfit.bottom.imageHeight) {
     if (isVisuallyATop(outfit.bottom.imageWidth, outfit.bottom.imageHeight)) {
       console.error(`❌ VALIDATOR: Bottom has top-like dimensions (${outfit.bottom.imageWidth}x${outfit.bottom.imageHeight})`);
       return false;
     }
   }
-
+  
   return true;
 }
 
@@ -680,21 +680,21 @@ export async function extractDominantColor(imageUrl: string): Promise<string> {
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'Anonymous';
-
+    
     img.onload = () => {
       try {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         if (!ctx) { resolve('#6B7280'); return; }
-
+        
         const size = 100;
         canvas.width = size;
         canvas.height = size;
         ctx.drawImage(img, 0, 0, size, size);
-
+        
         const imageData = ctx.getImageData(0, 0, size, size);
         const data = imageData.data;
-
+        
         let r = 0, g = 0, b = 0, count = 0;
         for (let i = 0; i < data.length; i += 4) {
           const red = data[i], green = data[i + 1], blue = data[i + 2], alpha = data[i + 3];
@@ -703,309 +703,244 @@ export async function extractDominantColor(imageUrl: string): Promise<string> {
           if (brightness < 20 || brightness > 235) continue;
           r += red; g += green; b += blue; count++;
         }
-
+        
         if (count === 0) { resolve('#6B7280'); return; }
-
-        const hex = '#' + [r / count, g / count, b / count]
+        
+        const hex = '#' + [r/count, g/count, b/count]
           .map(x => Math.round(x).toString(16).padStart(2, '0'))
           .join('');
         resolve(hex);
       } catch { resolve('#6B7280'); }
     };
-
+    
     img.onerror = () => resolve('#6B7280');
     img.src = imageUrl;
   });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 9. MAIN RECOMMENDATION FUNCTION (PAIR-FIRST PARADIGM)
+// 9. MAIN RECOMMENDATION FUNCTION (SEPARATED TOPS & BOTTOMS)
 // ═══════════════════════════════════════════════════════════════════════════════
-// ARCHITECTURAL FIX: We NO LONGER pre-classify items.
-// Instead: PAIR FIRST → ASSIGN ROLES DYNAMICALLY → GUARANTEED OUTPUT
+// USER EXPLICITLY UPLOADS TOPS AND BOTTOMS SEPARATELY
+// We trust the user's categorization and focus on COLOR HARMONY matching
+
+/**
+ * Calculate color harmony score between two hex colors
+ * Uses complementary, analogous, and neutral color theory
+ */
+function calculateColorHarmony(color1: string, color2: string): number {
+  // Convert hex to RGB
+  const hexToRgb = (hex: string) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : { r: 128, g: 128, b: 128 };
+  };
+
+  // Convert RGB to HSL
+  const rgbToHsl = (r: number, g: number, b: number) => {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h = 0, s = 0;
+    const l = (max + min) / 2;
+
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+        case g: h = ((b - r) / d + 2) / 6; break;
+        case b: h = ((r - g) / d + 4) / 6; break;
+      }
+    }
+    return { h: h * 360, s, l };
+  };
+
+  const rgb1 = hexToRgb(color1);
+  const rgb2 = hexToRgb(color2);
+  const hsl1 = rgbToHsl(rgb1.r, rgb1.g, rgb1.b);
+  const hsl2 = rgbToHsl(rgb2.r, rgb2.g, rgb2.b);
+
+  // Check if either color is neutral (low saturation)
+  const isNeutral1 = hsl1.s < 0.15;
+  const isNeutral2 = hsl2.s < 0.15;
+
+  // Neutrals go with everything
+  if (isNeutral1 || isNeutral2) {
+    return 0.85 + Math.random() * 0.1;
+  }
+
+  // Calculate hue difference
+  const hueDiff = Math.abs(hsl1.h - hsl2.h);
+  const normalizedDiff = Math.min(hueDiff, 360 - hueDiff);
+
+  let score = 0.5;
+
+  // Complementary colors (opposite on color wheel) - high harmony
+  if (normalizedDiff >= 150 && normalizedDiff <= 210) {
+    score = 0.90 + Math.random() * 0.08;
+  }
+  // Analogous colors (close on color wheel) - good harmony
+  else if (normalizedDiff <= 45) {
+    score = 0.80 + Math.random() * 0.1;
+  }
+  // Triadic (120 degrees apart)
+  else if (normalizedDiff >= 110 && normalizedDiff <= 130) {
+    score = 0.85 + Math.random() * 0.08;
+  }
+  // Split-complementary
+  else if ((normalizedDiff >= 135 && normalizedDiff <= 165) || (normalizedDiff >= 195 && normalizedDiff <= 225)) {
+    score = 0.82 + Math.random() * 0.08;
+  }
+  // Other combinations
+  else {
+    score = 0.60 + Math.random() * 0.15;
+  }
+
+  // Bonus for similar lightness levels (not too contrasting)
+  const lightnessDiff = Math.abs(hsl1.l - hsl2.l);
+  if (lightnessDiff < 0.3) {
+    score += 0.05;
+  }
+
+  return Math.min(0.98, score);
+}
 
 export async function getAIRecommendations(
   occasion: string,
-  tops: Array<{ imageUrl: string; id: string }>,
-  bottoms: Array<{ imageUrl: string; id: string }>,
-  maxItems: number = 2
+  topsArray: Array<{ imageUrl: string; id: string }>,
+  bottomsArray: Array<{ imageUrl: string; id: string }>,
+  maxOutfits: number = 3
 ): Promise<MLRecommendationResponse> {
+  console.log('═══════════════════════════════════════════════════════════════════');
+  console.log('🎯 COLOR HARMONY RECOMMENDATION ENGINE');
+  console.log('═══════════════════════════════════════════════════════════════════');
+  console.log(`   Occasion: ${occasion}`);
+  console.log(`   Tops: ${topsArray?.length || 0}`);
+  console.log(`   Bottoms: ${bottomsArray?.length || 0}`);
 
-  if (!tops || tops.length === 0 || !bottoms || bottoms.length === 0) {
+  // Guard: must have at least 1 top and 1 bottom
+  if (!topsArray || !bottomsArray || topsArray.length === 0 || bottomsArray.length === 0) {
     return {
       occasion,
       recommendations: [],
-      total_items_analyzed: (tops?.length || 0) + (bottoms?.length || 0),
+      total_items_analyzed: (topsArray?.length || 0) + (bottomsArray?.length || 0),
       status: 'error',
       reason: 'MISSING_TOP_OR_BOTTOM',
       debug: {
-        tops_count: tops?.length || 0,
-        bottoms_count: bottoms?.length || 0,
+        tops_count: topsArray?.length || 0,
+        bottoms_count: bottomsArray?.length || 0,
         unknown_count: 0,
         unknown_items: []
       }
     };
   }
 
-  console.log(`🎨 Generating smart outfits: ${tops.length} tops × ${bottoms.length} bottoms for ${occasion}`);
+  // Step 1: Extract colors from all items
+  console.log('\n🎨 STEP 1: Extracting colors...');
 
-  // ═══════════════════════════════════════════════════════════════════════════════
-  // STEP 1: Extract dominant colors from all images
-  // ═══════════════════════════════════════════════════════════════════════════════
+  interface ItemWithColor {
+    id: string;
+    imageUrl: string;
+    color: string;
+  }
 
-  const extractColor = async (imageUrl: string): Promise<string> => {
-    try {
-      return await extractDominantColor(imageUrl);
-    } catch {
-      return '#808080';
-    }
-  };
+  const topsWithColors: ItemWithColor[] = [];
+  const bottomsWithColors: ItemWithColor[] = [];
 
-  // Extract colors for all items in parallel
-  const topColors = await Promise.all(tops.map(t => extractColor(t.imageUrl)));
-  const bottomColors = await Promise.all(bottoms.map(b => extractColor(b.imageUrl)));
+  // Extract colors for tops
+  for (const top of topsArray) {
+    const color = await extractDominantColor(top.imageUrl);
+    topsWithColors.push({ ...top, color });
+    console.log(`   👕 TOP "${top.id}": ${color}`);
+  }
 
-  // ═══════════════════════════════════════════════════════════════════════════════
-  // STEP 2: Color harmony scoring functions
-  // ═══════════════════════════════════════════════════════════════════════════════
+  // Extract colors for bottoms
+  for (const bottom of bottomsArray) {
+    const color = await extractDominantColor(bottom.imageUrl);
+    bottomsWithColors.push({ ...bottom, color });
+    console.log(`   👖 BOTTOM "${bottom.id}": ${color}`);
+  }
 
-  const hexToHSL = (hex: string): { h: number; s: number; l: number } => {
-    const r = parseInt(hex.slice(1, 3), 16) / 255;
-    const g = parseInt(hex.slice(3, 5), 16) / 255;
-    const b = parseInt(hex.slice(5, 7), 16) / 255;
+  // Step 2: Generate all possible pairs and score by color harmony
+  console.log('\n🔗 STEP 2: Scoring all top+bottom pairs by color harmony...');
 
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    const l = (max + min) / 2;
+  interface ScoredPair {
+    top: ItemWithColor;
+    bottom: ItemWithColor;
+    harmonyScore: number;
+  }
 
-    let h = 0, s = 0;
-    if (max !== min) {
-      const d = max - min;
-      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-      switch (max) {
-        case r: h = ((g - b) / d + (g < b ? 6 : 0)) * 60; break;
-        case g: h = ((b - r) / d + 2) * 60; break;
-        case b: h = ((r - g) / d + 4) * 60; break;
-      }
-    }
-    return { h, s, l };
-  };
+  const scoredPairs: ScoredPair[] = [];
 
-  const calculateColorHarmony = (color1: string, color2: string): number => {
-    const hsl1 = hexToHSL(color1);
-    const hsl2 = hexToHSL(color2);
-
-    const hueDiff = Math.abs(hsl1.h - hsl2.h);
-    const normalizedHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
-
-    // Scoring based on color theory
-    let harmonyScore = 0.5; // Base score
-
-    // Complementary colors (opposite on wheel, ~180°) - very harmonious
-    if (normalizedHueDiff >= 150 && normalizedHueDiff <= 210) {
-      harmonyScore = 0.95;
-    }
-    // Analogous colors (adjacent, 0-30°) - harmonious
-    else if (normalizedHueDiff <= 30) {
-      harmonyScore = 0.85;
-    }
-    // Triadic colors (~120°) - balanced
-    else if (normalizedHueDiff >= 100 && normalizedHueDiff <= 140) {
-      harmonyScore = 0.80;
-    }
-    // Split-complementary (~150°) - good
-    else if (normalizedHueDiff >= 140 && normalizedHueDiff <= 170) {
-      harmonyScore = 0.75;
-    }
-    // Neutral pairing (one is low saturation)
-    else if (hsl1.s < 0.2 || hsl2.s < 0.2) {
-      harmonyScore = 0.82; // Neutrals go with everything
-    }
-    // Monochromatic (similar hue, different lightness)
-    else if (normalizedHueDiff <= 15 && Math.abs(hsl1.l - hsl2.l) > 0.2) {
-      harmonyScore = 0.88;
-    }
-
-    return harmonyScore;
-  };
-
-  // ═══════════════════════════════════════════════════════════════════════════════
-  // STEP 3: Occasion-based adjustments
-  // ═══════════════════════════════════════════════════════════════════════════════
-
-  const getOccasionModifier = (topColor: string, bottomColor: string, occasion: string): number => {
-    const topHSL = hexToHSL(topColor);
-    const bottomHSL = hexToHSL(bottomColor);
-    const avgLightness = (topHSL.l + bottomHSL.l) / 2;
-    const avgSaturation = (topHSL.s + bottomHSL.s) / 2;
-
-    switch (occasion.toLowerCase()) {
-      case 'formal':
-      case 'business':
-        // Formal/Business wear - STRICT filtering:
-        // - T-shirts (dark/black, low saturation) = EXCLUDE completely
-        // - Dress shirts (saturated, colored) = REQUIRED
-        // - Dress pants (dark) = REQUIRED
-        // - Jeans = EXCLUDE completely
-
-        // EXCLUDE: Very dark/black tops (t-shirts) - near-zero score
-        if (topHSL.l < 0.2) {
-          return 0.15; // EXCLUDE: black t-shirts not for formal
-        }
-
-        // EXCLUDE: Dark grey plain tops (casual t-shirt look)
-        if (topHSL.l < 0.35 && topHSL.s < 0.15) {
-          return 0.15; // EXCLUDE: grey t-shirts not for formal
-        }
-
-        // EXCLUDE: Blue jeans (saturated blue bottoms)
-        if (bottomHSL.h >= 190 && bottomHSL.h <= 250 && bottomHSL.s > 0.3 && bottomHSL.l > 0.3) {
-          return 0.15; // EXCLUDE: jeans not for formal
-        }
-
-        // EXCLUDE: Light/khaki casual pants
-        if (bottomHSL.l > 0.5 && bottomHSL.s < 0.3) {
-          return 0.25; // Low score: casual pants not ideal for formal
-        }
-
-        // BOOST: Colored dress shirts + dark dress pants (BEST for formal)
-        if (topHSL.s > 0.3 && topHSL.l > 0.25 && topHSL.l < 0.7 && bottomHSL.l < 0.3) {
-          return 1.30; // Best: colored dress shirt + dark pants
-        }
-
-        // BOOST: White/light dress shirts + dark pants
-        if (topHSL.l > 0.55 && bottomHSL.l < 0.35) {
-          return 1.25; // Great: white shirt + dark pants
-        }
-
-        // BOOST: Colored dress shirts (even without dark pants)
-        if (topHSL.s > 0.3 && topHSL.l > 0.25 && topHSL.l < 0.7) {
-          return 1.15; // Good: colored dress shirt
-        }
-
-        return 0.80; // Default lower for formal (strict filtering)
-
-      case 'party':
-        // Bright, saturated colors preferred
-        if (avgSaturation > 0.6) return 1.15;
-        if (avgSaturation < 0.3) return 0.90;
-        return 1.0;
-
-      case 'date':
-        // Balanced, warm colors preferred
-        const isWarm = (topHSL.h >= 0 && topHSL.h <= 60) || topHSL.h >= 300;
-        if (isWarm && avgSaturation > 0.3) return 1.10;
-        return 1.0;
-
-      case 'casual':
-        // Everything works, slight preference for balanced
-        return 1.0 + (avgSaturation * 0.1);
-
-      case 'sports':
-        // Sports wear logic:
-        // - T-shirts (dark, low saturation tops) = GOOD
-        // - Dress shirts (saturated, mid-lightness tops) = BAD
-        // - Trackpants (dark, low saturation bottoms) = GOOD
-        // - Jeans (saturated blue bottoms) = BAD
-        // - Formal pants (very dark) = BAD
-
-        // EXCLUDE dress shirts (saturated, colored tops)
-        if (topHSL.s > 0.35 && topHSL.l > 0.25 && topHSL.l < 0.65) {
-          return 0.15; // Near-zero: dress shirts not for sports
-        }
-
-        // EXCLUDE jeans (saturated blue bottoms)
-        if (bottomHSL.h >= 190 && bottomHSL.h <= 250 && bottomHSL.s > 0.3 && bottomHSL.l > 0.3) {
-          return 0.15; // Near-zero: jeans not for sports
-        }
-
-        // EXCLUDE formal dark pants (very dark, low saturation - dress pants)
-        if (bottomHSL.l < 0.15 && bottomHSL.s < 0.2) {
-          return 0.20; // Low score: formal pants not ideal for sports
-        }
-
-        // BOOST: T-shirts (darker or low saturation tops) with casual bottoms
-        if ((topHSL.l < 0.4 || topHSL.s < 0.25) && bottomHSL.l > 0.15 && bottomHSL.l < 0.5) {
-          return 1.25; // Great: t-shirt + trackpants style
-        }
-
-        // Good: bright/energetic colors for sports
-        if (avgSaturation > 0.4 && avgLightness > 0.35) {
-          return 1.10;
-        }
-
-        return 0.85; // Default lower for sports (strict filtering)
-
-      default:
-        return 1.0;
-    }
-  };
-
-  // ═══════════════════════════════════════════════════════════════════════════════
-  // STEP 4: Generate and score all outfit combinations
-  // ═══════════════════════════════════════════════════════════════════════════════
-
-  const outfits: MLOutfitRecommendation[] = [];
-
-  for (let i = 0; i < tops.length; i++) {
-    for (let j = 0; j < bottoms.length; j++) {
-      const topColor = topColors[i];
-      const bottomColor = bottomColors[j];
-
-      // Calculate base harmony score
-      const harmonyScore = calculateColorHarmony(topColor, bottomColor);
-
-      // Apply occasion modifier
-      const occasionModifier = getOccasionModifier(topColor, bottomColor, occasion);
-
-      // Final score (capped at 0.99)
-      const finalScore = Math.min(0.99, harmonyScore * occasionModifier);
-
-      const outfit: MLOutfitRecommendation = {
-        top: {
-          filename: tops[i].id,
-          type: 'top',
-          category: 'top',
-          color: topColor,
-          url: tops[i].imageUrl,
-          role: 'top',
-        },
-        bottom: {
-          filename: bottoms[j].id,
-          type: 'bottom',
-          category: 'bottom',
-          color: bottomColor,
-          url: bottoms[j].imageUrl,
-          role: 'bottom',
-        },
-        score: finalScore,
-        items: [],
-        total_items: 2,
-      };
-
-      outfit.items = [outfit.top, outfit.bottom];
-      outfits.push(outfit);
+  for (const top of topsWithColors) {
+    for (const bottom of bottomsWithColors) {
+      const harmonyScore = calculateColorHarmony(top.color, bottom.color);
+      scoredPairs.push({ top, bottom, harmonyScore });
+      console.log(`   ${top.id} + ${bottom.id}: ${(harmonyScore * 100).toFixed(0)}% harmony`);
     }
   }
 
-  // Sort by score (best first) and limit to 9 outfits
-  const sortedOutfits = outfits
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 9);
+  // Step 3: Sort by harmony score and take top N
+  scoredPairs.sort((a, b) => b.harmonyScore - a.harmonyScore);
+  const bestPairs = scoredPairs.slice(0, maxOutfits);
 
-  console.log(`✅ Generated ${sortedOutfits.length} smart outfit combinations for ${occasion}`);
-  console.log(`   Best match: ${Math.round(sortedOutfits[0]?.score * 100 || 0)}%`);
+  console.log(`\n✅ STEP 3: Selected top ${bestPairs.length} outfits`);
+
+  // Step 4: Convert to MLOutfitRecommendation format
+  const recommendations: MLOutfitRecommendation[] = bestPairs.map((pair, index) => {
+    const topItem: MLClothingItem = {
+      filename: pair.top.id,
+      type: 'top',
+      category: 'top',
+      color: pair.top.color,
+      url: pair.top.imageUrl,
+      role: 'top',
+    };
+
+    const bottomItem: MLClothingItem = {
+      filename: pair.bottom.id,
+      type: 'bottom',
+      category: 'bottom',
+      color: pair.bottom.color,
+      url: pair.bottom.imageUrl,
+      role: 'bottom',
+    };
+
+    console.log(`   Outfit ${index + 1}: ${pair.top.id} (${pair.top.color}) + ${pair.bottom.id} (${pair.bottom.color}) = ${(pair.harmonyScore * 100).toFixed(0)}%`);
+
+    return {
+      top: topItem,
+      bottom: bottomItem,
+      items: [topItem, bottomItem],
+      score: pair.harmonyScore,
+      total_items: 2,
+    };
+  });
+
+  console.log('\n═══════════════════════════════════════════════════════════════════');
+  console.log(`✅ GENERATED ${recommendations.length} COLOR-HARMONIZED OUTFITS`);
+  console.log('═══════════════════════════════════════════════════════════════════');
 
   return {
     occasion,
-    recommendations: sortedOutfits,
-    total_items_analyzed: tops.length + bottoms.length,
+    recommendations,
+    total_items_analyzed: topsArray.length + bottomsArray.length,
     status: 'ok',
+    debug: {
+      tops_count: topsArray.length,
+      bottoms_count: bottomsArray.length,
+      unknown_count: 0,
+      unknown_items: []
+    }
   };
 }
 
+
 // ═══════════════════════════════════════════════════════════════════════════════
-// UTILITY EXPORTS
+// 10. UTILITY EXPORTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export function getScoreColor(score: number): string {
