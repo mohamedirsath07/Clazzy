@@ -134,7 +134,8 @@ def emergency_generate_outfits(
         }
         
         outfits.append(outfit)
-        logger.info(f"   ✅ PAIR #{len(outfits)}: {top_name} + {bottom_name}")
+        # Log the pair using the resolved names to avoid NameError
+        logger.info(f"   ✅ PAIR #{len(outfits)}: {first_name} + {second_name}")
         
         # Limit to max_outfits
         if len(outfits) >= max_outfits:

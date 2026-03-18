@@ -35,6 +35,8 @@ import io
 
 # 🚨 EMERGENCY MODE: Minimal imports - NO ML classifier to save startup time
 # from ml_classifier import ClothingClassifier  # DISABLED for v1 launch
+# MODEL 1: Clothing classifier (now enabled)
+from ml_classifier import get_classifier  # MODEL 1: Top/Bottom classifier
 from color_analyzer import get_color_analyzer  # MODEL 2: Color extraction
 
 # 🚨 EMERGENCY MODE: Simple index-based pairing (NO validation, GUARANTEED output)
@@ -67,18 +69,25 @@ UPLOAD_DIR = Path(__file__).parent.parent / "client" / "public" / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # Global ML model instances (lazy loading)
+_classifier = None
 _color_analyzer = None
 
 def get_models():
-    """Initialize color extractor only (lazy loading)"""
-    global _color_analyzer
-    
+    """Initialize and return classifier + color extractor (lazy loading)."""
+    global _classifier, _color_analyzer
+
+    if _classifier is None:
+        print("🔄 Loading Clothing Classifier (MODEL 1)...")
+        _classifier = get_classifier()
+        print("✅ Clothing classifier loaded!")
+
     if _color_analyzer is None:
-        print("🚨 EMERGENCY MODE: Loading Color Extractor only...")
+        print("🔄 Loading Color Extractor (MODEL 2)...")
         _color_analyzer = get_color_analyzer()
         print("✅ Color extractor loaded!")
-    
-    return _color_analyzer
+
+    # Third return value reserved for future recommender instance
+    return _classifier, _color_analyzer, None
 
 
 def get_uploaded_files():
@@ -112,6 +121,12 @@ async def root():
             "/recommend-outfits": "Generate outfit recommendations"
         }
     }
+
+
+@app.get('/health')
+async def health():
+    """Lightweight liveness probe for monitors/tests."""
+    return {"status": "ok"}
 
 
 @app.post('/predict-type')
