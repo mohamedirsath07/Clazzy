@@ -2,6 +2,16 @@
 .DS_Store
 Thumbs.db
 
+# Node / Frontend
+node_modules/
+dist/
+.next/
+build/
+coverage/
+server/public
+vite.config.ts.*
+*.tar.gz
+
 # Python
 __pycache__/
 .pytest_cache/
@@ -10,18 +20,18 @@ __pycache__/
 *.pyd
 .venv/
 venv/
+
+# Environment
 .env
 .env.*
+.env.local
+.env.production
+.env.development
 
-# Node / Frontend
-node_modules/
-.next/
-dist/
-build/
-coverage/
+# Logs
 *.log
 
-# Artifacts
+# ML / model artifacts
 *.h5
 *.keras
 *.ckpt
@@ -34,15 +44,26 @@ coverage/
 *.temp
 *.cache/
 
-# Images generated or uploads (keep if needed)
-Fashion-Style/client/public/uploads/*.tmp
-
 # Notebooks and checkpoints
 .ipynb_checkpoints/
+
+# Uploads temp files
+Fashion-Style/client/public/uploads/*.tmp
+client/public/uploads/*.tmp
 
 # Local configs
 *.local
 *.secret
-.env.local
-.env.production
-.env.development
+
+# Large media files
+*.mp4
+*.mov
+*.pptx
+
+# IDE
+.idea/
+.vscode/
+
+# Models directory
+models/*.pt
+models/*.pth

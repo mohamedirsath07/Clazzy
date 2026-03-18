@@ -1,0 +1,14 @@
+fastapi==0.100.0
+uvicorn==0.22.0
+python-multipart
+
+# ML & Computer Vision
+tensorflow>=2.16.0
+scikit-learn>=1.3.0
+opencv-python>=4.8.0
+Pillow>=10.0.0
+numpy>=1.24.0
+
+# Color Analysis
+colormath>=3.0.0
+webcolors>=1.13
