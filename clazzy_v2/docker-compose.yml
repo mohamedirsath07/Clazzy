@@ -1,0 +1,100 @@
+# Clazzy V2 - Docker Compose
+# Full stack deployment: API + Redis + PostgreSQL
+
+version: '3.8'
+
+services:
+  # ===========================
+  # API Service
+  # ===========================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: clazzy-api
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql://clazzy:clazzy_secret@postgres:5432/clazzy
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=production
+      - DEBUG=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./models:/app/models:ro
+      - uploads:/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ===========================
+  # PostgreSQL Database
+  # ===========================
+  postgres:
+    image: postgres:15-alpine
+    container_name: clazzy-postgres
+    environment:
+      - POSTGRES_USER=clazzy
+      - POSTGRES_PASSWORD=clazzy_secret
+      - POSTGRES_DB=clazzy
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clazzy -d clazzy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ===========================
+  # Redis Cache
+  # ===========================
+  redis:
+    image: redis:7-alpine
+    container_name: clazzy-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+
+  # ===========================
+  # ML Model Server (Optional)
+  # For serving heavy models separately
+  # ===========================
+  # ml-server:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.ml
+  #   container_name: clazzy-ml
+  #   ports:
+  #     - "8002:8002"
+  #   volumes:
+  #     - ./models:/app/models:ro
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads:
+
+networks:
+  default:
+    name: clazzy-network
