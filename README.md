@@ -81,19 +81,19 @@ cd Clazzy
 
 2. **Install frontend dependencies**
 ```bash
-cd Fashion-Style/client
+cd client
 npm install
 ```
 
 3. **Install backend dependencies**
 ```bash
-cd ../backend
+cd backend
 pip install -r requirements.txt
 ```
 
 4. **Set up environment variables**
 
-Create a `.env` file in the `Fashion-Style/client` directory:
+Create a `.env` file in the `client` directory:
 ```env
 # Firebase Configuration (optional)
 VITE_FIREBASE_API_KEY=your_api_key
@@ -108,14 +108,14 @@ VITE_USE_LOCAL_STORAGE=true  # Set to false to use Firebase
 
 **Terminal 1 - Frontend:**
 ```bash
-cd Fashion-Style/client
+cd client
 npm run dev
 ```
 Frontend will run on `http://localhost:5000`
 
 **Terminal 2 - Backend:**
 ```bash
-cd Fashion-Style/backend
+cd backend
 python main.py
 ```
 Backend will run on `http://localhost:8001`
@@ -124,7 +124,7 @@ Backend will run on `http://localhost:8001`
 
 ### Frontend (React + TypeScript)
 ```
-Fashion-Style/client/
+client/
 ├── src/
 │   ├── components/        # React components
 │   │   ├── Hero.tsx      # Landing page with animations
@@ -143,7 +143,7 @@ Fashion-Style/client/
 
 ### Backend (FastAPI + Python)
 ```
-Fashion-Style/backend/
+backend/
 ├── main.py                   # FastAPI server
 ├── color_analyzer.py         # Color extraction (K-means)
 ├── ml_classifier.py          # Clothing type classifier
@@ -229,7 +229,7 @@ VITE_USE_LOCAL_STORAGE=false // Use Firebase
 ```
 
 ### Occasion Rules
-Customize occasion-based scoring in `Fashion-Style/client/src/lib/mlApi.ts`:
+Customize occasion-based scoring in `client/src/lib/mlApi.ts`:
 ```typescript
 case ‘formal’:
   if (topHSL.l < 0.2) return 0.15; // Exclude dark t-shirts

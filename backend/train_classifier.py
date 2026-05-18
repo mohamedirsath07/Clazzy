@@ -50,7 +50,7 @@ print(f"   Model created with {model.count_params():,} parameters")
 # Generate synthetic training data using image augmentation
 # We'll use the available images and augment them
 
-INPUTS_DIR = r"D:\Studiess\Project\Clazzy\Inputs"
+INPUTS_DIR = os.path.join(os.path.dirname(__file__), '..', 'test_data', 'Inputs')
 
 def load_and_augment(img_path, target_size=(150, 150)):
     """Load image and create augmented versions"""
