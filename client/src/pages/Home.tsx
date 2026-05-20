@@ -9,6 +9,7 @@ import { OccasionSelector } from "@/components/OccasionSelector";
 import { MLOutfitCard } from "@/components/MLOutfitCard";
 import { OutfitHistory } from "@/components/OutfitHistory";
 import { Button } from "@/components/ui/button";
+import Marketing from "@/components/Marketing";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, Sparkles, Loader2 } from "lucide-react";
 import type { ClothingItem, UserProfile, Occasion } from "@shared/schema";
@@ -137,7 +138,12 @@ export default function Home() {
     <div className="min-h-screen bg-black">
       <Header />
 
-      {currentStep === 0 && <Hero onGetStarted={handleGetStarted} onViewHistory={() => setShowHistory(true)} />}
+      {currentStep === 0 && (
+        <>
+          <Hero onGetStarted={handleGetStarted} onViewHistory={() => setShowHistory(true)} />
+          <Marketing />
+        </>
+      )}
 
       {/* Outfit History Modal */}
       {showHistory && (

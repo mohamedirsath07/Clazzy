@@ -57,102 +57,112 @@ export function Hero({ onGetStarted, onViewHistory }: HeroProps) {
   }, []);
 
   return (
-    <section ref={heroRef} className="relative overflow-hidden bg-black py-24 md:py-32 lg:py-40">
-      {/* Animated gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-black to-blue-900/20" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-900/30 via-transparent to-transparent" />
+    <section ref={heroRef} className="relative overflow-hidden bg-background pt-24 pb-32 md:pt-32 md:pb-40 lg:pt-40 lg:pb-48">
+      {/* Dynamic Animated Background Gradients (Gong/Atlassian inspired) */}
+      <div className="absolute inset-0 bg-background" />
+      
+      {/* Animated Gradient Orbs */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-primary/20 blur-[120px] mix-blend-screen animate-pulse-slow pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-secondary/20 blur-[120px] mix-blend-screen animate-pulse-slow pointer-events-none" style={{ animationDelay: '2s' }} />
+      <div className="absolute top-[20%] right-[10%] w-[30vw] h-[30vw] rounded-full bg-accent/20 blur-[100px] mix-blend-screen animate-float pointer-events-none" style={{ animationDelay: '1s' }} />
 
-      {/* Animated floating particles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-      </div>
+      {/* Grid Pattern overlay for Atlassian-like structure */}
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCI+PHBhdGggZD0iTTAgMGg0MHY0MEgweiIgZmlsbD0ibm9uZSIvPjxwaGF0aCBkPSJNMCAwaDF2NDBIMHptMCAwaDQwdjFIMHoiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wMykiLz48L3N2Zz4=')] [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_80%)] pointer-events-none" />
 
-      <div className="container relative mx-auto px-4 text-center">
+      <div className="container relative mx-auto px-6 lg:px-12 text-center z-10">
         {/* Main heading */}
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-primary text-sm font-medium mb-8 opacity-0" ref={el => titleRef.current = el as any}>
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+          </span>
+          Introducing Clazzy 2.0
+        </div>
+
         <h1
           ref={titleRef}
-          className="mb-6 text-6xl font-black tracking-tight text-white md:text-7xl lg:text-8xl opacity-0"
+          className="mb-8 text-5xl font-black tracking-tight text-foreground md:text-7xl lg:text-[5.5rem] leading-[1.1] opacity-0"
           data-testid="text-hero-title"
         >
-          <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
-            Clazzy
+          Your Intelligent <br className="hidden md:block" />
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-secondary animate-gradient-x">
+            Fashion Companion.
           </span>
         </h1>
 
         {/* Subtitle */}
         <p
           ref={subtitleRef}
-          className="mx-auto mb-12 max-w-3xl text-lg leading-relaxed text-gray-300 md:text-xl opacity-0"
+          className="mx-auto mb-12 max-w-2xl text-lg leading-relaxed text-muted-foreground md:text-xl font-body opacity-0"
           data-testid="text-hero-subtitle"
         >
-          Your intelligent fashion companion. Get AI-powered outfit recommendations, perfect color combinations, and complete wardrobe styling for any occasion.
+          Elevate your daily style. Get AI-powered outfit recommendations, perfect color combinations, and complete wardrobe curation for every occasion.
         </p>
 
         {/* CTA Buttons */}
-        <div ref={buttonsRef} className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+        <div ref={buttonsRef} className="flex flex-col sm:flex-row gap-5 justify-center items-center">
           <Button
             size="lg"
-            className="gap-2 rounded-full h-14 px-12 text-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 hover:scale-105 transition-transform duration-300"
+            className="gap-2 rounded-xl h-14 px-10 text-lg font-semibold bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 transition-all duration-300 shadow-[0_0_30px_rgba(124,58,237,0.4)]"
             onClick={onGetStarted}
             data-testid="button-get-started"
           >
-            Get Started
+            Start Styling
             <ArrowRight className="h-5 w-5" />
           </Button>
 
           <Button
             variant="outline"
             size="lg"
-            className="gap-2 rounded-full h-14 px-8 text-lg border-purple-500/50 text-purple-400 hover:bg-purple-500/10 hover:text-purple-300 hover:scale-105 transition-transform duration-300"
+            className="gap-2 rounded-xl h-14 px-8 text-lg font-medium border-white/10 bg-white/5 hover:bg-white/10 backdrop-blur-md text-foreground hover:scale-105 transition-all duration-300"
             onClick={onViewHistory}
             data-testid="button-view-history"
           >
-            <History className="h-5 w-5" />
-            View Saved Collection
+            <History className="h-5 w-5 text-muted-foreground" />
+            View Wardrobe
           </Button>
         </div>
 
         {/* Feature cards */}
-        <div ref={cardsRef} className="mt-20 grid gap-6 md:grid-cols-3 max-w-5xl mx-auto">
+        <div ref={cardsRef} className="mt-28 grid gap-6 md:grid-cols-3 max-w-6xl mx-auto">
           {/* Color Theory */}
-          <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur-sm hover:bg-white/10 hover:border-purple-500/50 hover:scale-[1.02] transition-all duration-300 cursor-pointer">
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <div className="relative">
-              <div className="mb-4 flex justify-center">
-                <Palette className="h-16 w-16 text-purple-500 stroke-[2] group-hover:scale-110 transition-transform duration-500" />
+          <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-card/40 backdrop-blur-xl p-8 shadow-2xl hover:border-primary/40 transition-all duration-500 cursor-pointer text-left">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="relative z-10">
+              <div className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20 text-primary ring-1 ring-primary/30 group-hover:scale-110 transition-transform duration-500">
+                <Palette className="h-6 w-6 stroke-[2]" />
               </div>
-              <h3 className="mb-3 text-xl font-bold text-white">Color Theory</h3>
-              <p className="text-sm leading-relaxed text-gray-400">
-                Perfect color combinations based on professional color theory
+              <h3 className="mb-3 text-2xl font-bold text-foreground">Color Theory</h3>
+              <p className="text-base leading-relaxed text-muted-foreground font-body">
+                Masterfully crafted color combinations rooted in professional design theory.
               </p>
             </div>
           </div>
 
           {/* AI Powered */}
-          <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur-sm hover:bg-white/10 hover:border-blue-500/50 hover:scale-[1.02] transition-all duration-300 cursor-pointer">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <div className="relative">
-              <div className="mb-4 flex justify-center">
-                <Bot className="h-16 w-16 text-blue-500 stroke-[2] group-hover:scale-110 transition-transform duration-500" />
+          <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-card/40 backdrop-blur-xl p-8 shadow-2xl hover:border-accent/40 transition-all duration-500 cursor-pointer text-left mt-0 md:mt-8">
+            <div className="absolute inset-0 bg-gradient-to-br from-accent/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="relative z-10">
+              <div className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-accent/20 text-accent ring-1 ring-accent/30 group-hover:scale-110 transition-transform duration-500">
+                <Bot className="h-6 w-6 stroke-[2]" />
               </div>
-              <h3 className="mb-3 text-xl font-bold text-white">AI Powered</h3>
-              <p className="text-sm leading-relaxed text-gray-400">
-                Machine learning recommendations based on visual similarity
+              <h3 className="mb-3 text-2xl font-bold text-foreground">AI Powered</h3>
+              <p className="text-base leading-relaxed text-muted-foreground font-body">
+                Advanced machine learning algorithms that understand visual similarity.
               </p>
             </div>
           </div>
 
           {/* Complete Outfits */}
-          <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur-sm hover:bg-white/10 hover:border-pink-500/50 hover:scale-[1.02] transition-all duration-300 cursor-pointer">
-            <div className="absolute inset-0 bg-gradient-to-br from-pink-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <div className="relative">
-              <div className="mb-4 flex justify-center">
-                <Shirt className="h-16 w-16 text-pink-500 stroke-[2] group-hover:scale-110 transition-transform duration-500" />
+          <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-card/40 backdrop-blur-xl p-8 shadow-2xl hover:border-secondary/40 transition-all duration-500 cursor-pointer text-left">
+            <div className="absolute inset-0 bg-gradient-to-br from-secondary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="relative z-10">
+              <div className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-secondary/20 text-secondary ring-1 ring-secondary/30 group-hover:scale-110 transition-transform duration-500">
+                <Shirt className="h-6 w-6 stroke-[2]" />
               </div>
-              <h3 className="mb-3 text-xl font-bold text-white">Complete Outfits</h3>
-              <p className="text-sm leading-relaxed text-gray-400">
-                Full outfit combinations tailored for specific occasions
+              <h3 className="mb-3 text-2xl font-bold text-foreground">Curated Looks</h3>
+              <p className="text-base leading-relaxed text-muted-foreground font-body">
+                Full outfit combinations tailored perfectly for your specific occasions.
               </p>
             </div>
           </div>

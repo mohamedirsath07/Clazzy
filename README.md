@@ -3,10 +3,14 @@
 Your intelligent fashion companion that provides AI-powered outfit recommendations with perfect color combinations and complete wardrobe styling for any occasion.
 
 ![Clazzy Logo](https://img.shields.io/badge/Clazzy-AI%20Fashion-purple?style=for-the-badge)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Clazzy-success?style=for-the-badge)](https://clazzyai.vercel.app)
+
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)](https://reactjs.org/)
 [![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+
+**🌐 Live Demo:** [clazzyai.vercel.app](https://clazzyai.vercel.app)
 
 ## ✨ Features
 

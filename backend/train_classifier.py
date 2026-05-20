@@ -154,7 +154,7 @@ for filename in label_mapping.keys():
 
 # Save the model
 print("\n5. Saving trained model...")
-OUTPUT_PATH = r"D:\Studiess\Project\Clazzy\Fashion-Style\backend\clothing_classifier_trained.keras"
+OUTPUT_PATH = os.path.join(os.path.dirname(__file__), 'clothing_classifier_trained.keras')
 model.save(OUTPUT_PATH)
 print(f"   ✅ Saved to: {OUTPUT_PATH}")
 

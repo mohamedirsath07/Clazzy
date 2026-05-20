@@ -18,23 +18,23 @@ export function ProgressIndicator({ currentStep, steps }: ProgressIndicatorProps
           <div key={step.number} className="flex items-center">
             <div className="flex flex-col items-center gap-2">
               <div
-                className={`flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors ${
+                className={`flex h-12 w-12 items-center justify-center rounded-full border-2 transition-all duration-500 shadow-lg ${
                   currentStep > step.number
-                    ? "border-primary bg-primary text-primary-foreground"
+                    ? "border-primary/50 bg-primary/20 text-primary ring-1 ring-primary/50 backdrop-blur-md"
                     : currentStep === step.number
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-background text-muted-foreground"
+                    ? "border-primary bg-primary text-primary-foreground shadow-[0_0_20px_rgba(124,58,237,0.5)] scale-110"
+                    : "border-white/10 bg-white/5 text-muted-foreground backdrop-blur-md"
                 }`}
                 data-testid={`step-indicator-${step.number}`}
               >
                 {currentStep > step.number ? (
-                  <Check className="h-5 w-5" />
+                  <Check className="h-6 w-6 stroke-[3]" />
                 ) : (
-                  <span className="text-sm font-semibold">{step.number}</span>
+                  <span className="text-base font-bold">{step.number}</span>
                 )}
               </div>
               <span
-                className={`hidden text-sm md:block ${
+                className={`hidden text-sm font-medium tracking-wide md:block mt-2 transition-colors duration-300 ${
                   currentStep >= step.number ? "text-foreground" : "text-muted-foreground"
                 }`}
               >
@@ -42,11 +42,12 @@ export function ProgressIndicator({ currentStep, steps }: ProgressIndicatorProps
               </span>
             </div>
             {index < steps.length - 1 && (
-              <div
-                className={`mx-2 h-0.5 w-12 md:mx-4 md:w-20 ${
-                  currentStep > step.number ? "bg-primary" : "bg-border"
-                }`}
-              />
+              <div className="relative mx-2 md:mx-6 h-1 w-12 md:w-24 bg-white/5 rounded-full overflow-hidden">
+                <div
+                  className={`absolute top-0 left-0 h-full bg-gradient-to-r from-primary to-secondary transition-all duration-700 ease-out`}
+                  style={{ width: currentStep > step.number ? '100%' : '0%' }}
+                />
+              </div>
             )}
           </div>
         ))}
