@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://clazzyai.vercel.app/sitemap.xml

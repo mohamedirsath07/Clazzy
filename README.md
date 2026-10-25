@@ -1,271 +1,196 @@
-# 👔 Clazzy - AI-Powered Outfit Recommendation App
+# 👔 Clazzy — AI-Powered Outfit Recommendation App
 
-Your intelligent fashion companion that provides AI-powered outfit recommendations with perfect color combinations and complete wardrobe styling for any occasion.
+> **Your intelligent fashion companion that generates optimal outfit combinations with color harmony algorithms and wardrobe pairing for any occasion.**
 
-![Clazzy Logo](https://img.shields.io/badge/Clazzy-AI%20Fashion-purple?style=for-the-badge)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Clazzy-success?style=for-the-badge)](https://clazzyai.vercel.app)
+[![CI Pipeline](https://github.com/mohamedirsath07/Clazzy/actions/workflows/ci.yml/badge.svg)](https://github.com/mohamedirsath07/Clazzy/actions/workflows/ci.yml)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-clazzyai.vercel.app-7C3AED?style=flat&logo=vercel&logoColor=white)](https://clazzyai.vercel.app)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-007ACC?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-18.3-20232A?style=flat&logo=react&logoColor=61DAFB)](https://reactjs.org/)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)](https://reactjs.org/)
-[![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+---
 
-**🌐 Live Demo:** [clazzyai.vercel.app](https://clazzyai.vercel.app)
+## 🌐 Live Application
+- **Production URL:** [https://clazzyai.vercel.app](https://clazzyai.vercel.app)
+- **Installable PWA:** Works on mobile and desktop offline or online with local storage caching.
 
-## ✨ Features
+---
 
-### 📱 Install as Mobile App (PWA)
-Clazzy can be installed on your phone like a native app - no app store needed!
+## 🏛️ System Architecture
 
-**Android (Chrome/Edge):**
-1. Open Clazzy in Chrome on your Android device
-2. Tap the "Install App" banner OR tap the menu (⋮) → "Add to Home screen"
-3. The app icon will appear on your home screen
+Clazzy uses a resilient **Dual-Engine Architecture**:
+1. **Cloud / Local ML Mode**: Connects to the FastAPI backend with TensorFlow/Keras binary classification and K-means color extraction.
+2. **Client-Side Color Theory Fallback**: When deployed in serverless/static environments (like Vercel) or when the user is offline, an in-browser color harmony engine (HSV/HSL analysis, complementary/analogous pairing, aspect-ratio heuristics) takes over with zero latency.
 
-**iPhone/iPad (Safari):**
-1. Open Clazzy in Safari on your iOS device
-2. Tap the Share button (📤)
-3. Scroll down and tap "Add to Home Screen"
-4. Tap "Add" to confirm
+```mermaid
+flowchart TD
+    User([User / Browser]) -->|Upload Clothes & Select Occasion| UI[React 18 + Vite Frontend]
+    UI --> Router{Backend Available?}
+    
+    subgraph "Python ML Backend (FastAPI)"
+        Router -->|Yes: VITE_API_URL| API[/predict-type & /recommend-outfits/]
+        API --> KerasModel[TensorFlow/Keras Clothing Classifier]
+        API --> KMeans[OpenCV + K-Means Color Analyzer]
+        API --> MLRecommender[Outfit Harmony Engine]
+        MLRecommender --> API
+    end
+    
+    subgraph "Client Fallback Engine (In-Browser)"
+        Router -->|No / Offline| ClientEngine[Client-Side Color Harmony Engine]
+        ClientEngine --> CanvasSampler[HTML5 Canvas Pixel Color Sampler]
+        ClientEngine --> HSLWheel[Color Wheel Harmony Scoring]
+        ClientEngine --> RoleLock[Role-Locked Top/Bottom Pair Validator]
+    end
+    
+    API --> Results[Ranked Outfits with Match Scores]
+    RoleLock --> Results
+    Results --> UI
+    UI --> Storage[(IndexedDB / Firebase Storage)]
+```
 
-### 🎨 Smart Outfit Recommendations
-- **Color Harmony Analysis**: Uses color theory principles to score outfit combinations
-  - Complementary colors (opposite on color wheel): 95% base score
-  - Monochromatic (same hue, different brightness): 88%
-  - Analogous (adjacent colors): 85%
-  - Neutral pairs: 82%
-  - Triadic colors: 80%
+---
+
+## ✨ Core Features
+
+### 📱 Progressive Web App (PWA)
+- Installable directly to home screen on iOS and Android.
+- Service Worker caching strategy for instant subsequent reloads.
+
+### 🎨 Color Harmony Scoring
+Evaluates clothing pairing using fundamental color wheel geometry:
+- **Complementary (150°–210°)**: ~95% base harmony.
+- **Monochromatic & Neutrals**: ~88% base harmony (neutrals pair safely with all palettes).
+- **Analogous (0°–45°)**: ~86% harmonious transition.
+- **Triadic & Split-Complementary**: ~82%–84% balanced contrast.
 
 ### 🎯 Occasion-Based Filtering
-- **Formal/Business**: Excludes t-shirts and jeans, boosts dress shirts + dark pants
-- **Sports**: Filters out dress shirts and jeans, prioritizes athletic wear
-- **Party**: Preferences bright, saturated colors
-- **Date**: Favors warm, balanced colors
-- **Casual**: Balanced scoring for all styles
+- **Formal / Business**: Penalizes casual wear and boosts structured shirts with dark trousers.
+- **Sports**: Prioritizes breathable activewear.
+- **Party**: Rewards higher saturation and vibrant contrast.
+- **Casual / Everyday**: Balanced, all-around harmony scoring.
 
-### 💾 Saved Collection
-- Save favorite outfit combinations to local IndexedDB storage
-- View saved outfits with images, occasion, and match scores
-- Delete individual outfits from collection
-- Persistent storage across sessions
+### 💾 Persistent Local Collection
+- Wardrobe library management with instant image preview.
+- IndexedDB storage for offline wardrobe persistence without mandatory logins.
+- Optional Firebase Cloud storage support.
 
-### 📚 Smart Library Management
-- Upload and organize your wardrobe items
-- Automatic categorization into Tops and Bottoms
-- Filter by clothing type (All/Tops/Bottoms)
-- Select All / Deselect All functionality
-- Support for both local (IndexedDB) and cloud (Firebase) storage
-
-### 🎭 User Personalization
-- Enter name, age, and gender preferences
-- Personalized recommendations based on user profile
-- Multiple occasion support
-
-### ✨ Beautiful Animations
-- GSAP-powered entrance animations
-- Smooth transitions and micro-interactions
-- Floating particles background
-- Gradient text effects
-- Hover effects with scale and glow
+---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js (v18 or higher)
-- Python 3.9+
-- npm or yarn
+- **Node.js** v18+ (Node 20+ recommended)
+- **Python** 3.10+
+- **npm** or **pnpm**
 
-### Installation
+### 1. Clone & Setup Environment
 
-1. **Clone the repository**
 ```bash
 git clone https://github.com/mohamedirsath07/Clazzy.git
 cd Clazzy
+
+# Copy safe environment configuration template
+cp .env.example .env
 ```
 
-2. **Install frontend dependencies**
+### 2. Frontend Setup
+
 ```bash
-cd client
+# Install frontend dependencies
 npm install
-```
 
-3. **Install backend dependencies**
+# Run frontend in development mode
+npm run dev:client
+```
+The frontend will start at `http://localhost:5173`.
+
+### 3. Backend Setup (Optional for Full ML Pipeline)
+
 ```bash
 cd backend
+
+# Create and activate virtual environment
+python -m venv .venv
+# Windows:
+.venv\Scripts\activate
+# macOS/Linux:
+source .venv/bin/activate
+
+# Install backend dependencies
 pip install -r requirements.txt
-```
 
-4. **Set up environment variables**
-
-Create a `.env` file in the `client` directory:
-```env
-# Firebase Configuration (optional)
-VITE_FIREBASE_API_KEY=your_api_key
-VITE_FIREBASE_PROJECT_ID=your_project_id
-VITE_FIREBASE_STORAGE_BUCKET=your_bucket
-
-# Storage Mode
-VITE_USE_LOCAL_STORAGE=true  # Set to false to use Firebase
-```
-
-### Running the Application
-
-**Terminal 1 - Frontend:**
-```bash
-cd client
-npm run dev
-```
-Frontend will run on `http://localhost:5000`
-
-**Terminal 2 - Backend:**
-```bash
-cd backend
+# Start FastAPI server
 python main.py
 ```
-Backend will run on `http://localhost:8001`
-
-## 🏗️ Architecture
-
-### Frontend (React + TypeScript)
-```
-client/
-├── src/
-│   ├── components/        # React components
-│   │   ├── Hero.tsx      # Landing page with animations
-│   │   ├── Library.tsx   # Wardrobe library management
-│   │   ├── MLOutfitCard.tsx  # Outfit recommendation cards
-│   │   ├── OutfitHistory.tsx # Saved collection modal
-│   │   └── ...
-│   ├── lib/              # Utilities and APIs
-│   │   ├── mlApi.ts      # ML API client & color analysis
-│   │   ├── localLibrary.ts   # IndexedDB storage
-│   │   ├── firebase.ts   # Firebase integration
-│   │   └── outfitHistory.ts  # Saved outfits storage
-│   └── pages/
-│       └── Home.tsx      # Main application page
-```
-
-### Backend (FastAPI + Python)
-```
-backend/
-├── main.py                   # FastAPI server
-├── color_analyzer.py         # Color extraction (K-means)
-├── ml_classifier.py          # Clothing type classifier
-├── outfit_recommender.py     # Outfit recommendation logic
-├── emergency_recommender.py  # Fallback recommendation
-└── requirements.txt
-```
-
-## 🎨 Color Harmony Algorithm
-
-The app uses advanced color theory to score outfits:
-
-1. **Extract dominant colors** from each clothing item using K-means clustering
-2. **Convert to HSL** color space for analysis
-3. **Calculate harmony** based on hue difference:
-   - Complementary: 150-210° → 95%
-   - Analogous: 0-30° → 85%
-   - Triadic: 100-140° → 80%
-   - Neutrals (low saturation) → 82%
-4. **Apply occasion modifiers**:
-   - Formal: +30% for colored shirts + dark pants
-   - Sports: +25% for t-shirts + trackpants
-   - Party: +15% for saturated colors
-
-## 🛠️ Technologies Used
-
-### Frontend
-- **React 18** - UI framework
-- **TypeScript** - Type safety
-- **Vite** - Fast build tool
-- **GSAP** - Animation library
-- **Tailwind CSS** - Styling
-- **Shadcn/ui** - UI components
-- **React Hook Form** - Form handling
-- **Zod** - Schema validation
-- **IndexedDB** - Local storage
-
-### Backend
-- **FastAPI** - Python web framework
-- **TensorFlow/Keras** - ML models
-- **OpenCV** - Image processing
-- **NumPy/Pandas** - Data manipulation
-- **Scikit-learn** - ML utilities
-
-### Storage
-- **IndexedDB** - Browser-based local storage
-- **Firebase Storage** - Optional cloud storage
-
-## 📝 API Endpoints
-
-### `/predict-type` (POST)
-Classify clothing item as TOP or BOTTOM
-- **Input**: Image file
-- **Output**: `{ predicted_type: ‘top’ | ‘bottom’, confidence: number }`
-
-### `/extract-colors` (POST)
-Extract dominant colors from image
-- **Input**: Image file
-- **Output**: `{ colors: [{ hex, rgb, percentage }], dominant_color: string }`
-
-### `/recommend-outfits` (POST)
-Generate outfit recommendations
-- **Input**: `{ tops: [...], bottoms: [...], occasion: string }`
-- **Output**: `{ recommendations: [{ top, bottom, score }] }`
-
-## 🎯 User Flow
-
-1. **Upload clothes** via device or select from library
-2. **Enter profile details** (name, age, gender)
-3. **Select occasion** (casual, formal, party, etc.)
-4. **Get recommendations** with smart color harmony scoring
-5. **Save favorites** to your collection
-6. **View saved outfits** anytime from the home page
-
-## 🔧 Configuration
-
-### Storage Mode
-Toggle between local (IndexedDB) and cloud (Firebase) storage:
-```typescript
-// In .env
-VITE_USE_LOCAL_STORAGE=true  // Use IndexedDB
-VITE_USE_LOCAL_STORAGE=false // Use Firebase
-```
-
-### Occasion Rules
-Customize occasion-based scoring in `client/src/lib/mlApi.ts`:
-```typescript
-case ‘formal’:
-  if (topHSL.l < 0.2) return 0.15; // Exclude dark t-shirts
-  if (topHSL.s > 0.3 && bottomHSL.l < 0.3) return 1.30; // Boost dress shirts
-```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the project
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m ‘Add some AmazingFeature’`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is open source and available under the MIT License.
-
-## 👨‍💻 Author
-
-**Mohamed Irsath**
-- GitHub: [@mohamedirsath07](https://github.com/mohamedirsath07)
-
-## 🙏 Acknowledgments
-
-- Color theory principles from professional fashion design
-- GSAP for beautiful animations
-- Shadcn/ui for component library
-- FastAPI for the robust backend framework
+The FastAPI backend will start at `http://localhost:8000` (API documentation available at `http://localhost:8000/docs`).
 
 ---
 
-Made with ❤️ by Mohamed Irsath
+## 🧪 Testing
+
+Clazzy includes comprehensive test coverage for both frontend color harmony scoring and backend outfit recommendation engines:
+
+```bash
+# Run Frontend Unit Tests (Node test runner + TSX)
+npm test
+
+# Run Python Backend Tests (Pytest)
+npm run test:backend
+```
+
+---
+
+## 📂 Repository Structure
+
+```
+Clazzy/
+├── .github/
+│   ├── workflows/ci.yml       # GitHub Actions CI workflow
+│   └── CONTRIBUTING.md        # Contributor guidelines
+├── backend/
+│   ├── main.py                # FastAPI server & route handlers
+│   ├── color_analyzer.py      # K-means color extraction
+│   ├── ml_classifier.py       # Keras classification interface
+│   ├── outfit_recommender.py  # Occasion & color pairing logic
+│   ├── emergency_recommender.py # Deterministic fallback recommender
+│   ├── train_classifier.py    # Training script to rebuild classifier
+│   ├── tests/                 # Pytest backend test suite
+│   └── requirements.txt       # Python dependencies
+├── client/
+│   ├── public/                # Static assets, PWA icons, robots.txt, sitemap.xml
+│   ├── src/
+│   │   ├── components/        # React UI components & ErrorBoundary
+│   │   │   └── ui/            # Curated shadcn/ui primitives
+│   │   ├── lib/
+│   │   │   ├── colorAnalysis.ts    # Color theory & HSL algorithms
+│   │   │   ├── outfitRecommender.ts # Heuristics & pairing logic
+│   │   │   ├── mlTypes.ts          # Core TypeScript definitions
+│   │   │   └── mlApi.ts            # Orchestration & API communication
+│   │   └── pages/
+│   │       └── Home.tsx       # Main step wizard interface
+│   └── index.html             # Accessible viewport, SEO tags, JSON-LD
+├── .env.example               # Environment variables template
+├── package.json
+└── vite.config.ts
+```
+
+---
+
+## 🔒 Security & Secrets Management
+
+- Database connection strings, cloud storage tokens, and backend endpoints are managed strictly through environment variables (`.env`).
+- Never commit actual secrets or production credentials to git. Refer to `.env.example` for required configuration keys.
+
+---
+
+## 🤝 Contributing
+
+Contributions, bug reports, and suggestions are welcome! Please review [CONTRIBUTING.md](.github/CONTRIBUTING.md) for contribution guidelines and conventional commit practices.
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE).

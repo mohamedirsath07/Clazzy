@@ -5,10 +5,6 @@ dotenv.config();
 
 const MONGODB_URI = process.env.MONGODB_URI || '';
 
-if (!MONGODB_URI) {
-  throw new Error('Please define MONGODB_URI in your .env file');
-}
-
 // Connection options
 const options = {
   maxPoolSize: 10, // Maintain up to 10 socket connections
@@ -28,6 +24,10 @@ if (!global.mongoose) {
 }
 
 export async function connectDB() {
+  if (!MONGODB_URI) {
+    throw new Error('MONGODB_URI is not set in environment. Skipping database connection.');
+  }
+
   if (cached.conn) {
     console.log('📊 Using cached MongoDB connection');
     return cached.conn;

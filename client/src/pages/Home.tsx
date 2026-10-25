@@ -11,6 +11,8 @@ import { OutfitHistory } from "@/components/OutfitHistory";
 import { Button } from "@/components/ui/button";
 import Marketing from "@/components/Marketing";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Sparkles, Loader2 } from "lucide-react";
 import type { ClothingItem, UserProfile, Occasion } from "@shared/schema";
 import { getAIRecommendations, type MLRecommendationResponse } from "@/lib/mlApi";
@@ -87,7 +89,7 @@ export default function Home() {
     setSelectedOccasion(occasion);
   };
 
-  // NEW: Get AI-Powered Recommendations
+  // Get AI-Powered Recommendations with timeout protection
   const handleGetAIRecommendations = async () => {
     if (!selectedOccasion) return;
 
@@ -96,24 +98,32 @@ export default function Home() {
     setShowMLResults(true);
 
     try {
-      // Pass separated tops and bottoms lists
-      const result = await getAIRecommendations(selectedOccasion, tops, bottoms, 2);
+      // Promise race with 10-second timeout
+      const recommendationPromise = getAIRecommendations(selectedOccasion, tops, bottoms, 3);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Recommendation request timed out')), 10000)
+      );
+
+      const result = await Promise.race([recommendationPromise, timeoutPromise]);
       setMlRecommendations(result);
 
       if (result.status === 'error') {
-        setAiError(result.reason || "Unknown error generating outfits");
+        setAiError(result.reason || "Unable to generate outfits from current items.");
       } else if (result.recommendations.length === 0) {
-        setAiError('No outfit combinations could be generated from your items.');
+        setAiError('No matching outfit combinations found. Try adding more tops or bottoms.');
       } else {
         setAiError(null);
         setTimeout(() => {
           setCurrentStep(3);
-        }, 1000);
+        }, 600);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('AI recommendation error:', error);
-      setAiError('Technical error generating recommendations. Please try again.');
-      setMlRecommendations(null);
+      setAiError(
+        error?.message === 'Recommendation request timed out'
+          ? 'Network timeout. Falling back to local styling engine...'
+          : 'Technical error generating recommendations. Please try again.'
+      );
     } finally {
       setIsLoadingAI(false);
     }
@@ -280,6 +290,33 @@ export default function Home() {
                     )}
                   </Button>
 
+                  {/* Skeleton Loader during Generation */}
+                  {isLoadingAI && (
+                    <div className="mt-6 space-y-3">
+                      <p className="text-xs font-medium text-purple-400 animate-pulse text-center">
+                        Synthesizing color palettes and occasion compatibility...
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {[1, 2].map((idx) => (
+                          <div
+                            key={idx}
+                            className="rounded-xl border border-purple-500/20 bg-slate-900/60 p-4 space-y-3"
+                          >
+                            <div className="flex items-center justify-between">
+                              <Skeleton className="h-4 w-24 bg-slate-800" />
+                              <Skeleton className="h-5 w-14 rounded-full bg-slate-800" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <Skeleton className="h-32 rounded-lg bg-slate-800" />
+                              <Skeleton className="h-32 rounded-lg bg-slate-800" />
+                            </div>
+                            <Skeleton className="h-3 w-3/4 bg-slate-800" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* AI Error Alert */}
                   {aiError && (
                     <Alert variant="destructive" className="mt-4">
@@ -314,6 +351,21 @@ export default function Home() {
                     ? `Generated using your ${tops.length} tops and ${bottoms.length} bottoms`
                     : `Here are our top recommendations for ${selectedOccasion} occasions`}
                 </p>
+
+                {/* Transparency Badge */}
+                {mlRecommendations && (
+                  <div className="mt-3 flex justify-center">
+                    {mlRecommendations.backendMode === 'fastapi_ml' ? (
+                      <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40">
+                        ⚡ Powered by FastAPI ML Engine
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/40">
+                        🎨 Powered by Color Harmony Engine (Local & Offline Ready)
+                      </Badge>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* AI-Generated Outfits Section */}

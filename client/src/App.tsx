@@ -8,6 +8,8 @@ import { InstallPrompt } from "@/components/InstallPWA";
 import Home from "@/pages/Home";
 import NotFound from "@/pages/not-found";
 
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+
 function Router() {
   return (
     <Switch>
@@ -24,7 +26,9 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <InstallPrompt />
-          <Router />
+          <ErrorBoundary>
+            <Router />
+          </ErrorBoundary>
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
