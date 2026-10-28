@@ -2,13 +2,6 @@ import { useState, useEffect } from 'react';
 import { useInstallApp } from '@/hooks/useInstallApp';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Download, X, Smartphone, Share, PlusSquare, MoreVertical } from 'lucide-react';
 
 export function InstallPrompt() {
@@ -112,71 +105,79 @@ export function InstallPrompt() {
         </div>
       )}
 
-      {/* iOS Instructions Dialog */}
-      <Dialog open={showIOSInstructions} onOpenChange={setShowIOSInstructions}>
-        <DialogContent className="sm:max-w-md bg-gradient-to-br from-gray-900 to-gray-950 border-purple-500/30">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-white">
+      {/* iOS Instructions Modal */}
+      {showIOSInstructions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-in fade-in-0">
+          <div className="relative w-full max-w-md rounded-xl border border-purple-500/30 bg-gradient-to-br from-gray-900 to-gray-950 p-6 shadow-2xl">
+            <button
+              onClick={() => setShowIOSInstructions(false)}
+              className="absolute right-4 top-4 rounded-sm text-gray-400 hover:text-white"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="flex items-center gap-2 text-white font-semibold text-lg mb-1">
               <Smartphone className="h-5 w-5 text-purple-400" />
               Install Clazzy on iOS
-            </DialogTitle>
-            <DialogDescription className="text-gray-400">
+            </div>
+            <p className="text-sm text-gray-400 mb-4">
               Follow these steps to add Clazzy to your home screen
-            </DialogDescription>
-          </DialogHeader>
+            </p>
 
-          <div className="space-y-4 py-4">
-            {/* Step 1 */}
-            <div className="flex items-start gap-4 p-3 rounded-lg bg-gray-800/50">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-600 text-white text-sm font-bold">
-                1
+            <div className="space-y-4 py-2">
+              {/* Step 1 */}
+              <div className="flex items-start gap-4 p-3 rounded-lg bg-gray-800/50">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-600 text-white text-sm font-bold">
+                  1
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-white mb-1">Tap the Share button</p>
+                  <p className="text-sm text-gray-400">
+                    Look for the <Share className="h-4 w-4 inline mx-1" /> icon at the bottom of Safari
+                  </p>
+                </div>
               </div>
-              <div className="flex-1">
-                <p className="font-medium text-white mb-1">Tap the Share button</p>
-                <p className="text-sm text-gray-400">
-                  Look for the <Share className="h-4 w-4 inline mx-1" /> icon at the bottom of Safari
-                </p>
+
+              {/* Step 2 */}
+              <div className="flex items-start gap-4 p-3 rounded-lg bg-gray-800/50">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-600 text-white text-sm font-bold">
+                  2
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-white mb-1">Scroll and find "Add to Home Screen"</p>
+                  <p className="text-sm text-gray-400">
+                    Look for <PlusSquare className="h-4 w-4 inline mx-1" /> Add to Home Screen
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div className="flex items-start gap-4 p-3 rounded-lg bg-gray-800/50">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-600 text-white text-sm font-bold">
+                  3
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-white mb-1">Tap "Add"</p>
+                  <p className="text-sm text-gray-400">
+                    Confirm by tapping Add in the top right corner
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* Step 2 */}
-            <div className="flex items-start gap-4 p-3 rounded-lg bg-gray-800/50">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-600 text-white text-sm font-bold">
-                2
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-white mb-1">Scroll and find "Add to Home Screen"</p>
-                <p className="text-sm text-gray-400">
-                  Look for <PlusSquare className="h-4 w-4 inline mx-1" /> Add to Home Screen
-                </p>
-              </div>
-            </div>
-
-            {/* Step 3 */}
-            <div className="flex items-start gap-4 p-3 rounded-lg bg-gray-800/50">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-600 text-white text-sm font-bold">
-                3
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-white mb-1">Tap "Add"</p>
-                <p className="text-sm text-gray-400">
-                  Confirm by tapping Add in the top right corner
-                </p>
-              </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button
+                variant="outline"
+                onClick={() => setShowIOSInstructions(false)}
+                className="border-gray-700 hover:bg-gray-800"
+              >
+                Got it!
+              </Button>
             </div>
           </div>
-
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowIOSInstructions(false)}
-              className="border-gray-700 hover:bg-gray-800"
-            >
-              Got it!
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </>
   );
 }
